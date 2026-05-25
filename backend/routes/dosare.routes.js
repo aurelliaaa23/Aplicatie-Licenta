@@ -1,5 +1,5 @@
 const router = require('express').Router();
-const { Dosar, Utilizator, Document, Notificare, IstoricActiuni, ScrisoareMedicala, SolicitareMedicala } = require('../models');
+const { Dosar, Utilizator, Document, Notificare, IstoricActiuni, SolicitareMedicala } = require('../models');
 const { verificaToken, verificaRol } = require('../middleware/auth.middleware');
 const nodemailer = require('nodemailer');
 
@@ -166,7 +166,13 @@ router.post('/:id/notifica-medici', verificaToken, async (req, res) => {
       
       // Protecție în caz că medicul nu e găsit
       if (!medicCurent) continue; 
-
+      
+      await SolicitareMedicala.create({
+        medic_id: medicCurent.id,
+        cetatean_id: cetatean.id,
+        dosar_id: dosarId,
+        status: 'in_asteptare'
+      });
 
       const mailOptions = {
         // ✅ CORECȚIA 2: Am pus backticks (`) ca să citească adresa de e-mail din .env
@@ -230,5 +236,116 @@ router.get('/medici/solicitari', verificaToken, async (req, res) => {
     res.status(500).json({ eroare: err.message });
   }
 });    
+
+const fs = require('fs');
+const path = require('path');
+const PDFDocument = require('pdfkit');
+
+// ── POST /api/dosare/:id/scrisoare-medicala ──────────────────────────────
+router.post('/:id/scrisoare-medicala', verificaToken, async (req, res) => {
+  try {
+    const dosarId = req.params.id;
+    const { 
+      nume, prenume, cnp, varsta, 
+      anamneza, diagnostic_principal, diagnostic_secundar, 
+      internari, deplasabil, semnatura_base64 
+    } = req.body;
+
+    const doc = new PDFDocument({ margin: 50 });
+    
+    // Asigură-te că folderul de upload există
+    const dir = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+
+    const fileName = `Scrisoare_Medicala_${Date.now()}.pdf`;
+    const filePath = path.join(dir, fileName);
+    const stream = fs.createWriteStream(filePath);
+    
+    doc.pipe(stream);
+
+    // Titlu
+    doc.fontSize(16).font('Helvetica-Bold').text('SCRISOARE MEDICALĂ', { align: 'center' });
+    doc.moveDown(1.5);
+
+    // Date pacient
+    doc.fontSize(12).font('Helvetica');
+    doc.text(`Numele: ${nume}, Prenumele: ${prenume}, CNP: ${cnp}, vârsta: ${varsta} ani.`);
+    doc.moveDown();
+
+    // 1. Anamneza
+    doc.font('Helvetica-Bold').text('1. Anamneza');
+    doc.font('Helvetica').text('- antecedente personale patologice:');
+    doc.text(anamneza || '............................................................................');
+    doc.moveDown();
+
+    // 2. Diagnostic medical
+    doc.font('Helvetica-Bold').text('2. Diagnosticul medical');
+    doc.font('Helvetica').text('- principal:');
+    doc.text(diagnostic_principal || '............................................................................');
+    doc.moveDown(0.5);
+    doc.text('- secundar / altele:');
+    doc.text(diagnostic_secundar || '............................................................................');
+    doc.moveDown();
+
+    // 3. Internări în spital
+    doc.font('Helvetica-Bold').text('3. Internări în spital (data, instituția emitentă și diagnosticul la ieșire)');
+    doc.font('Helvetica');
+    if (internari && internari.length > 0) {
+      internari.forEach(int => {
+        doc.text(`Perioada: ${int.data_inceput} - ${int.data_sfarsit}`);
+        doc.text(`Unitatea: ${int.unitate}`);
+        doc.text(`Diagnostic la ieșire: ${int.diagnostic}`);
+        doc.moveDown(0.5);
+      });
+    } else {
+      doc.text('............................................................................');
+    }
+    doc.moveDown();
+
+    // 4. Deplasabilitate
+    doc.font('Helvetica-Bold').text('4. Starea de deplasabilitate');
+    doc.font('Helvetica');
+    doc.text(`Persoana: ${deplasabil}`);
+    doc.moveDown(2);
+
+    // Semnături și Dată
+    doc.text(`Data completării: ${new Date().toLocaleDateString('ro-RO')}`);
+    doc.moveDown(2);
+    
+    doc.text('Semnătura medicului de familie:');
+    if (semnatura_base64) {
+      // Curăță prefixul bazei 64 creat în canvas
+      const base64Data = semnatura_base64.replace(/^data:image\/(png|jpeg);base64,/, "");
+      const imgBuffer = Buffer.from(base64Data, 'base64');
+      doc.image(imgBuffer, { width: 150 });
+    }
+
+    doc.end();
+
+    stream.on('finish', async () => {
+      // Creăm înregistrarea Document în baza de date
+      await Document.create({
+        dosar_id: dosarId,
+        utilizator_id: req.utilizator.id,
+        tip_document: 'certificat_medical', // Putem folosi tipul dorit
+        nume_fisier: fileName,
+        cale_fisier: `uploads/${fileName}`,
+        semnatura_base64: semnatura_base64
+      });
+
+      // Actualizăm starea solicitării medicale (dacă modelul este definit)
+      await SolicitareMedicala.update(
+        { status: 'finalizat' },
+        { where: { dosar_id: dosarId, medic_id: req.utilizator.id } }
+      );
+
+      res.json({ mesaj: 'Document generat cu succes!', cale: `uploads/${fileName}` });
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ eroare: 'Eroare la generarea scrisorii medicale.' });
+  }
+});
 
 module.exports = router;

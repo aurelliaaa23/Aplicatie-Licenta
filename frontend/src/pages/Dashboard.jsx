@@ -92,12 +92,19 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const fetchDosare = async () => {
+
+    const fetchDosare = async () => {
     try {
-      const { data } = await api.get('/dosare');
-      setDosare(data);
+      if (rol === 'medic') {
+        const { data } = await api.get('/dosare/medici/solicitari');
+        setDosare(data);
+      } else {
+        const { data } = await api.get('/dosare');
+        setDosare(data);
+      }
     } catch {}
   };
+    
 
   const fetchNotificari = async () => {
     try {
@@ -114,7 +121,13 @@ export default function Dashboard() {
   };
 
   // ── Statistici ──────────────────────────────────────
-  const stats = {
+  const stats = rol === 'medic' ? {
+    total:     dosare.length,
+    active:    dosare.filter((d) => d.status !== 'finalizat').length,
+    aprobate:  dosare.filter((d) => d.status === 'finalizat').length,
+    urgente:   0, // Solicitările medicale nu folosesc neapărat câmpul urgent în listă
+    incomplet: 0,
+  } : {
     total:     dosare.length,
     active:    dosare.filter((d) => ['depus','in_analiza','incomplet','programat_comisie'].includes(d.status)).length,
     aprobate:  dosare.filter((d) => d.status === 'aprobat').length,
@@ -261,10 +274,10 @@ export default function Dashboard() {
                 <tr>
                   <th>Nr. dosar</th>
                   <th>Tip</th>
-                  {rol !== 'cetățean' && <th>Cetățean</th>}
-                  <th>Prioritate</th>
+                  {rol !== 'cetățean' && <th>{rol === 'medic' ? 'Pacient' : 'Cetățean'}</th>}
+                  {rol !== 'medic' && <th>Prioritate</th>}
                   <th>Status</th>
-                  <th>Data depunerii</th>
+                  <th>{rol === 'medic' ? 'Data solicitării' : 'Data depunerii'}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -273,29 +286,42 @@ export default function Dashboard() {
                   <tr key={d.id}>
                     <td>
                       <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5, color: 'var(--blue)', fontWeight: 500 }}>
-                        {d.numar_dosar}
+                        {rol === 'medic' ? (d.dosar?.numar_dosar || `#${d.dosar_id}`) : d.numar_dosar}
                       </span>
                     </td>
-                    <td style={{ fontSize: 13 }}>{TIP_LABEL[d.tip] || d.tip}</td>
+                    <td style={{ fontSize: 13 }}>{rol === 'medic' ? d.tip : (TIP_LABEL[d.tip] || d.tip)}</td>
+                    
                     {rol !== 'cetățean' && (
                       <td style={{ fontSize: 13 }}>
-                        {d.cetățean?.prenume} {d.cetățean?.nume}
+                        {rol === 'medic' 
+                          ? `${d.cetatean?.prenume} ${d.cetatean?.nume}` 
+                          : `${d.cetățean?.prenume} ${d.cetățean?.nume}`}
                       </td>
                     )}
+
+                    {rol !== 'medic' && (
+                      <td>
+                        {d.prioritate === 'urgent'
+                          ? <span style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600 }}>🔴 Urgent</span>
+                          : <span style={{ background: 'var(--bg)', color: 'var(--text-3)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 500 }}>Normal</span>
+                        }
+                      </td>
+                    )}
+
                     <td>
-                      {d.prioritate === 'urgent'
-                        ? <span style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600 }}>🔴 Urgent</span>
-                        : <span style={{ background: 'var(--bg)', color: 'var(--text-3)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 500 }}>Normal</span>
-                      }
-                    </td>
-                    <td>
-                      <span className={`badge badge-${d.status}`}>{STATUS_LABEL[d.status]}</span>
+                      {rol === 'medic' ? (
+                        <span className={`badge badge-${d.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>
+                          {d.status === 'finalizat' ? '✅ Finalizat' : '⏳ În așteptare'}
+                        </span>
+                      ) : (
+                        <span className={`badge badge-${d.status}`}>{STATUS_LABEL[d.status]}</span>
+                      )}
                     </td>
                     <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
-                      {new Date(d.creat_la).toLocaleDateString('ro-RO')}
+                      {new Date(rol === 'medic' ? d.createdAt : d.creat_la).toLocaleDateString('ro-RO')}
                     </td>
                     <td>
-                      <Link to={`/dosar/${d.id}`} className="btn btn-ghost btn-sm">
+                      <Link to={`/dosar/${rol === 'medic' ? d.dosar_id : d.id}`} className="btn btn-ghost btn-sm">
                         Detalii
                       </Link>
                     </td>

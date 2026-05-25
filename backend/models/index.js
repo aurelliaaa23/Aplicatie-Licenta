@@ -6,6 +6,7 @@ const Document        = require('./Document');
 const ProgramareComisie = require('./ProgramareComisie');
 const Notificare      = require('./Notificare');
 const IstoricActiuni  = require('./IstoricActiuni');
+const SolicitareMedicala = require('./SolicitareMedicala');
 
 // ── Relații ───────────────────────────────────────────────
 Rol.hasMany(Utilizator, { foreignKey: 'rol_id' });
@@ -35,8 +36,15 @@ Notificare.belongsTo(Utilizator, { foreignKey: 'utilizator_id' });
 Utilizator.hasMany(IstoricActiuni, { foreignKey: 'utilizator_id' });
 IstoricActiuni.belongsTo(Utilizator, { foreignKey: 'utilizator_id' });
 
+SolicitareMedicala.belongsTo(Utilizator, { as: 'cetatean', foreignKey: 'cetatean_id' });
+SolicitareMedicala.belongsTo(Utilizator, { as: 'medic', foreignKey: 'medic_id' });
+SolicitareMedicala.belongsTo(Dosar, { as: 'dosar', foreignKey: 'dosar_id' });
+
+Utilizator.hasMany(SolicitareMedicala, { foreignKey: 'medic_id', as: 'solicitariPrimite' });
+Dosar.hasMany(SolicitareMedicala, { foreignKey: 'dosar_id', as: 'solicitari' });
+
 module.exports = {
   sequelize,
   Rol, Utilizator, Dosar, Document,
-  ProgramareComisie, Notificare, IstoricActiuni,
+  ProgramareComisie, Notificare, IstoricActiuni, SolicitareMedicala
 };
