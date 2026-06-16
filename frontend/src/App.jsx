@@ -49,9 +49,14 @@ function AppRoutes() {
         <ProtectedRoute><DosarDetaliu /></ProtectedRoute>
       } />
       <Route path="/calendar" element={
-        <ProtectedRoute roluriPermise={['funcționar', 'manager', 'administrator']}>
-          <Calendar />
-        </ProtectedRoute>
+      <ProtectedRoute roluriPermise={['funcționar', 'manager', 'administrator']}>
+      <Calendar />
+      </ProtectedRoute>
+      } />
+      <Route path="/programari" element={
+      <ProtectedRoute roluriPermise={['cetățean']}>
+      <Calendar />
+      </ProtectedRoute>
       } />
 
       <Route path="/"  element={<Navigate to="/login" replace />} />

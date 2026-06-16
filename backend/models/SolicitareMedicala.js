@@ -1,3 +1,6 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
 const SolicitareMedicala = sequelize.define('SolicitareMedicala', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   cetatean_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -15,3 +18,5 @@ const SolicitareMedicala = sequelize.define('SolicitareMedicala', {
   createdAt: 'creat_la',
   updatedAt: 'actualizat_la',
 });
+
+module.exports = SolicitareMedicala;

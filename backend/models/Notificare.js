@@ -1,3 +1,6 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
 const Notificare = sequelize.define('Notificare', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   utilizator_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -10,3 +13,5 @@ const Notificare = sequelize.define('Notificare', {
   createdAt: 'creat_la',
   updatedAt: false,
 });
+
+module.exports = Notificare;

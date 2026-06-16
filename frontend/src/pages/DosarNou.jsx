@@ -11,7 +11,6 @@ const TIPURI = [
   { value: 'adoptie',             label: '👨‍👩‍👧 Adopție',                  desc: 'Deschidere procedură de adopție națională sau internațională' },
   { value: 'plasament',           label: '🏠 Plasament familial',          desc: 'Plasament copil în familie substitutivă sau la asistent maternal' },
   { value: 'alocatie',            label: '💰 Alocație de stat',            desc: 'Alocație pentru copii sau alocație de plasament' },
-  { value: 'evaluare_adulti',     label: '👤 Evaluare adulți',             desc: 'Evaluare complexă pentru persoane adulte cu nevoi speciale' },
   { value: 'alte_servicii',       label: '📋 Alte servicii sociale',       desc: 'Asistență pentru familii în dificultate sau alte servicii DGASPC' },
 ];
 
@@ -20,7 +19,6 @@ const DOC_CERUTE = {
   adoptie:             ['Carte de identitate ambii soți', 'Certificat de căsătorie', 'Cazier judiciar', 'Adeverință venit'],
   plasament:           ['Carte de identitate', 'Certificat naștere copil', 'Ancheta socială'],
   alocatie:            ['Carte de identitate', 'Certificat naștere copil', 'Adeverință venit', 'Cont bancar'],
-  evaluare_adulti:     ['Carte de identitate', 'Documente medicale', 'Adeverință de la medicul de familie'],
   alte_servicii:       ['Carte de identitate', 'Documente justificative specifice situației'],
 };
 
@@ -104,7 +102,7 @@ export default function DosarNou() {
 
   // Form state PAS 1
   const [dateCerere, setDateCerere] = useState({
-    serie_ci: '', numar_ci: '', judet: utilizator?.judet || '', oras: utilizator?.oras || '',
+    serie_ci: '', numar_ci: '',
     strada: '', tip_cerere: 'dosar_nou', acord_corectitudine: false, acord_gdpr: false,
   });
 
@@ -157,11 +155,6 @@ export default function DosarNou() {
     }
   }, [step]);
 
-  useEffect(() => {
-    if (dateCerere.judet.startsWith('București')) setDateCerere(prev => ({ ...prev, oras: 'București' }));
-    else if (dateCerere.judet !== utilizator?.judet) setDateCerere(prev => ({ ...prev, oras: '' }));
-    if (medicFam.acelasiJudet) setMedicFam(prev => ({ ...prev, judet: dateCerere.judet }));
-  }, [dateCerere.judet, medicFam.acelasiJudet]);
 
   const resizeCanvas = () => {
     if (!canvasRef.current) return;
@@ -193,18 +186,21 @@ export default function DosarNou() {
       setStep(isHandicap ? 1 : 2);
     } 
     else if (step === 1) {
-      if (!dateCerere.serie_ci || !dateCerere.numar_ci || !dateCerere.judet || !dateCerere.oras || !dateCerere.strada) {
-        return toast.warning('Vă rugăm să completați seria CI, numărul CI și adresa completă.');
-      }
-      if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) {
-        return toast.warning('Bifați ambele acorduri la finalul formularului pentru a continua.');
-      }
-      try {
-        await api.patch('/auth/profil', { judet: dateCerere.judet, oras: dateCerere.oras });
-        if (checkAuth) checkAuth(); 
-      } catch (err) { console.error("Eroare update profil", err); }
-      setStep(2);
-    } 
+    if (!dateCerere.serie_ci || !dateCerere.numar_ci || !dateCerere.strada) {
+      return toast.warning('Vă rugăm să completați seria CI, numărul CI și strada.');
+    }
+    if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) {
+      return toast.warning('Bifați ambele acorduri la finalul formularului pentru a continua.');
+    }
+    try {
+      // Salvăm strada în adresa_completa din profil_cetatean
+      await api.patch('/auth/profil', {
+        adresa_completa: `${dateCerere.strada}, ${utilizator?.oras || ''}, ${utilizator?.judet || ''}`,
+      });
+      if (checkAuth) checkAuth();
+    } catch (err) { console.error("Eroare update profil", err); }
+    setStep(2);
+  }
     else if (step === 2) {
       if (!descriere.trim()) return toast.warning('Descrieți situația dvs.');
       setStep(3);
@@ -410,24 +406,30 @@ export default function DosarNou() {
                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Adresa de domiciliu</h4>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Județ / Sector *</label>
-                    <select className="form-input" value={dateCerere.judet} onChange={(e) => setDateCerere({...dateCerere, judet: e.target.value})}>
-                      <option value="">Alege județul...</option>
-                      {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
-                    </select>
+                    <label>Județ / Sector </label>
+                    <input 
+                      type="text" className="form-input"
+                      value={utilizator?.judet || '—'}
+                      disabled
+                      style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
+                    />
                   </div>
                   <div className="form-group">
-                    <label>Oraș / Comună *</label>
-                    {dateCerere.judet.startsWith('București') ? (
-                       <input type="text" className="form-input" value="București" disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
-                    ) : (
-                       <select className="form-input" value={dateCerere.oras} onChange={(e) => setDateCerere({...dateCerere, oras: e.target.value})}>
-                         <option value="">Alege orașul/comuna...</option>
-                         {(ORASE_PER_JUDET[dateCerere.judet] || []).map(o => <option key={o} value={o}>{o}</option>)}
-                       </select>
-                    )}
+                    <label>Oraș / Comună </label>
+                    <input
+                      type="text" className="form-input"
+                      value={utilizator?.oras || '—'}
+                      disabled
+                      style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
+                    />
                   </div>
                 </div>
+                {(!utilizator?.judet || !utilizator?.oras) && (
+                  <p style={{ fontSize: 12.5, color: 'var(--danger)', marginBottom: 12 }}>
+                    ⚠️ Județul și orașul nu sunt completate în profilul dvs.{' '}
+                    <a href="/profil" style={{ color: 'var(--blue)' }}>Actualizați profilul</a> înainte de a continua.
+                  </p>
+                )}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>Detalii adresă (Stradă, număr, bloc, apartament) *</label>
                   <input type="text" className="form-input" placeholder="ex: Bd. Unirii, nr. 10, bl. A, ap. 5" 

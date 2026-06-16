@@ -5,6 +5,7 @@ import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 moment.locale('ro');
 const localizer = momentLocalizer(moment);
@@ -45,6 +46,9 @@ export default function Calendar() {
     data_ora: '', durata_minute: 30, locatie: '',
   });
 
+  const { utilizator } = useAuth();
+  const esteCetatean = utilizator?.rol === 'cetățean';
+
   useEffect(() => { fetchProgramari(); }, []);
 
   const fetchProgramari = async () => {
@@ -59,14 +63,19 @@ export default function Calendar() {
     }
   };
 
-  const mapEvent = (p) => ({
-    id:    p.id,
-    title: `${TIP_COMISIE_LABEL[p.tip_comisie] || p.tip_comisie}`,
-    start: new Date(p.data_ora),
-    end:   new Date(new Date(p.data_ora).getTime() + (p.durata_minute || 30) * 60000),
-    resource: p,
-    color: TIP_COMISIE_COLOR[p.tip_comisie] || '#2563eb',
-  });
+  const mapEvent = (p) => {
+    const tipLabel = TIP_COMISIE_LABEL[p.tip_comisie]
+      || p.detalii?.replace('Comisie: ', '')
+      || 'Programare comisie';
+    return {
+      id:    p.id,
+      title: tipLabel,
+      start: new Date(p.data_ora_programare || p.data_ora),
+      end:   new Date(new Date(p.data_ora_programare || p.data_ora).getTime() + (p.durata_minute || 60) * 60000),
+      resource: p,
+      color: TIP_COMISIE_COLOR[p.tip_comisie] || '#2563eb',
+    };
+  };
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -113,15 +122,20 @@ export default function Calendar() {
 
   return (
     <Layout title="Calendar comisii">
-      <div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
-        <div>
-          <h2>Calendar comisii</h2>
-          <p>Gestionați programările la comisiile de specialitate DGASPC</p>
-        </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(true)}>
-          + Programare nouă
-        </button>
-      </div>
+<div className="page-header" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+  <div>
+    <h2>{esteCetatean ? 'Programările mele' : 'Calendar comisii'}</h2>
+    <p>{esteCetatean
+      ? 'Programările dvs. la comisiile DGASPC'
+      : 'Gestionați programările la comisiile de specialitate DGASPC'}
+    </p>
+  </div>
+  {!esteCetatean && (
+    <button className="btn btn-primary" onClick={() => setShowForm(true)}>
+      + Programare nouă
+    </button>
+  )}
+</div>
 
       {/* Legendă culori */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
@@ -190,19 +204,20 @@ export default function Calendar() {
                 </div>
               ))}
 
-              {selected.status === 'programat' && (
-                <button className="btn btn-danger btn-sm" style={{ marginTop: 4 }}
-                  onClick={() => anuleazaProgramare(selected.id)}>
-                  Anulează programarea
-                </button>
-              )}
+              // Detalii programare selectată — înlocuiește blocul cu butonul "Anulează":
+{selected.status === 'programat' && !esteCetatean && (
+  <button className="btn btn-danger btn-sm" style={{ marginTop: 4 }}
+    onClick={() => anuleazaProgramare(selected.id)}>
+    Anulează programarea
+  </button>
+)}
             </div>
           </div>
         )}
       </div>
 
       {/* ── Modal programare nouă ── */}
-      {showForm && (
+      {showForm && !esteCetatean &&(
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div className="card" style={{ width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto' }}>
             <div className="card-header">

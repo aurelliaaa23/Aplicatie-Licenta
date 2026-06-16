@@ -1,3 +1,6 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
 const SablonDocument = sequelize.define('SablonDocument', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   nume_sablon: { type: DataTypes.STRING(150), allowNull: false },

@@ -4,30 +4,103 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
+// ── Județe & Orașe (identic cu Register.jsx) ──────────────
+const JUDETE = [
+  'București - Sector 1', 'București - Sector 2', 'București - Sector 3',
+  'București - Sector 4', 'București - Sector 5', 'București - Sector 6',
+  'Alba', 'Arad', 'Argeș', 'Bacău', 'Bihor', 'Bistrița-Năsăud', 'Botoșani', 'Brașov',
+  'Brăila', 'Buzău', 'Caraș-Severin', 'Călărași', 'Cluj', 'Constanța', 'Covasna',
+  'Dâmbovița', 'Dolj', 'Galați', 'Giurgiu', 'Gorj', 'Harghita', 'Hunedoara', 'Ialomița',
+  'Iași', 'Ilfov', 'Maramureș', 'Mehedinți', 'Mureș', 'Neamț', 'Olt', 'Prahova',
+  'Satu Mare', 'Sălaj', 'Sibiu', 'Suceava', 'Teleorman', 'Timiș', 'Tulcea', 'Vaslui',
+  'Vâlcea', 'Vrancea',
+];
+
+const ORASE_PER_JUDET = {
+  'Alba': ['Alba Iulia', 'Sebeș', 'Aiud', 'Cugir', 'Blaj'],
+  'Arad': ['Arad', 'Pecica', 'Sântana', 'Lipova', 'Ineu'],
+  'Argeș': ['Pitești', 'Mioveni', 'Câmpulung', 'Curtea de Argeș'],
+  'Bacău': ['Bacău', 'Onești', 'Moinești', 'Comănești'],
+  'Bihor': ['Oradea', 'Salonta', 'Marghita', 'Săcueni'],
+  'Bistrița-Năsăud': ['Bistrița', 'Năsăud', 'Beclean'],
+  'Botoșani': ['Botoșani', 'Dorohoi', 'Darabani'],
+  'Brașov': ['Brașov', 'Făgăraș', 'Săcele', 'Zărnești', 'Codlea'],
+  'Brăila': ['Brăila', 'Ianca', 'Însurăței'],
+  'Buzău': ['Buzău', 'Râmnicu Sărat', 'Nehoiu'],
+  'Caraș-Severin': ['Reșița', 'Caransebeș', 'Bocșa'],
+  'Călărași': ['Călărași', 'Oltenița', 'Lehliu-Gară'],
+  'Cluj': ['Cluj-Napoca', 'Turda', 'Dej', 'Câmpia Turzii', 'Gherla'],
+  'Constanța': ['Constanța', 'Mangalia', 'Medgidia', 'Năvodari'],
+  'Covasna': ['Sfântu Gheorghe', 'Târgu Secuiesc', 'Covasna'],
+  'Dâmbovița': ['Târgoviște', 'Moreni', 'Pucioasa', 'Găești'],
+  'Dolj': ['Craiova', 'Băilești', 'Calafat', 'Segarcea'],
+  'Galați': ['Galați', 'Tecuci', 'Târgu Bujor'],
+  'Giurgiu': ['Giurgiu', 'Bolintin-Vale'],
+  'Gorj': ['Târgu Jiu', 'Motru', 'Rovinari', 'Turceni'],
+  'Harghita': ['Miercurea Ciuc', 'Odorheiu Secuiesc', 'Gheorgheni'],
+  'Hunedoara': ['Deva', 'Hunedoara', 'Petroșani', 'Orăștie'],
+  'Ialomița': ['Slobozia', 'Fetești', 'Urziceni'],
+  'Iași': ['Iași', 'Pașcani', 'Hârlău'],
+  'Ilfov': ['Buftea', 'Voluntari', 'Pantelimon', 'Popești-Leordeni'],
+  'Maramureș': ['Baia Mare', 'Sighetu Marmației', 'Borșa', 'Vișeu de Sus'],
+  'Mehedinți': ['Drobeta-Turnu Severin', 'Orșova', 'Strehaia'],
+  'Mureș': ['Târgu Mureș', 'Sighișoara', 'Reghin', 'Târnăveni'],
+  'Neamț': ['Piatra Neamț', 'Roman', 'Târgu Neamț'],
+  'Olt': ['Slatina', 'Caracal', 'Balș'],
+  'Prahova': ['Ploiești', 'Câmpina', 'Sinaia', 'Băicoi', 'Breaza'],
+  'Satu Mare': ['Satu Mare', 'Carei', 'Negrești-Oaș'],
+  'Sălaj': ['Zalău', 'Șimleu Silvaniei'],
+  'Sibiu': ['Sibiu', 'Mediaș', 'Cisnădie'],
+  'Suceava': ['Suceava', 'Fălticeni', 'Rădăuți', 'Câmpulung Moldovenesc'],
+  'Teleorman': ['Alexandria', 'Roșiori de Vede', 'Turnu Măgurele'],
+  'Timiș': ['Timișoara', 'Lugoj', 'Sânnicolau Mare'],
+  'Tulcea': ['Tulcea', 'Babadag', 'Măcin'],
+  'Vaslui': ['Vaslui', 'Bârlad', 'Huși'],
+  'Vâlcea': ['Râmnicu Vâlcea', 'Drăgășani', 'Băbeni'],
+  'Vrancea': ['Focșani', 'Adjud', 'Mărășești'],
+};
+
 export default function Profil() {
   const { utilizator, updateUtilizator } = useAuth();
-  const [loading, setLoading]  = useState(false);
+  const [loading, setLoading]   = useState(false);
   const [tabActiv, setTabActiv] = useState('profil');
 
+  const esteCetatean = utilizator?.rol === 'cetățean';
+
   const [form, setForm] = useState({
-    prenume:  utilizator?.prenume  || '',
-    nume:     utilizator?.nume     || '',
-    telefon:  utilizator?.telefon  || '',
-    email:    utilizator?.email    || '',
+    prenume: utilizator?.prenume || '',
+    nume:    utilizator?.nume    || '',
+    telefon: utilizator?.telefon || '',
+    email:   utilizator?.email   || '',
+    // doar pentru cetățean
+    judet:   utilizator?.judet   || '',
+    oras:    utilizator?.oras    || '',
   });
 
   const [parole, setParole] = useState({
     parola_curenta: '', parola_noua: '', confirmare: '',
   });
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set  = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setP = (k) => (e) => setParole((p) => ({ ...p, [k]: e.target.value }));
+
+  // La schimbarea județului resetăm și orașul
+  const setJudet = (val) => {
+    setForm((f) => ({ ...f, judet: val, oras: '' }));
+  };
 
   const salveazaProfil = async () => {
     setLoading(true);
     try {
-      const { data } = await api.patch('/auth/profil', form);
-      updateUtilizator(data.utilizator || form);
+      const payload = { prenume: form.prenume, nume: form.nume, telefon: form.telefon, email: form.email };
+      if (esteCetatean) {
+        const orasFinal = form.judet.startsWith('București') ? form.judet : form.oras;
+        payload.judet = form.judet;
+        payload.oras  = orasFinal;
+        payload.adresa_completa = orasFinal ? `${orasFinal}, ${form.judet}` : form.judet;
+      }
+      const { data } = await api.patch('/auth/profil', payload);
+      updateUtilizator(data.utilizator || payload);
       toast.success('Profilul a fost actualizat');
     } catch (err) {
       toast.error(err.response?.data?.eroare || 'Eroare la salvare');
@@ -50,7 +123,7 @@ export default function Profil() {
     try {
       await api.patch('/auth/schimba-parola', {
         parola_curenta: parole.parola_curenta,
-        parola_noua: parole.parola_noua,
+        parola_noua:    parole.parola_noua,
       });
       toast.success('Parola a fost schimbată cu succes');
       setParole({ parola_curenta: '', parola_noua: '', confirmare: '' });
@@ -64,25 +137,30 @@ export default function Profil() {
   const initiale = `${utilizator?.prenume?.[0] || ''}${utilizator?.nume?.[0] || ''}`.toUpperCase();
 
   const ROL_LABEL = {
-    cetățean:              'Cetățean',
-    funcționar:            'Funcționar DGASPC',
-    medic:                 'Medic specialist',
-    funcționar_primărie:   'Funcționar primărie',
-    reprezentant_școală:   'Reprezentant școală',
-    manager:               'Manager DGASPC',
-    administrator:         'Administrator sistem',
+    cetățean:            'Cetățean',
+    funcționar:          'Funcționar DGASPC',
+    medic:               'Medic specialist',
+    funcționar_primărie: 'Funcționar primărie',
+    reprezentant_școală: 'Reprezentant școală',
+    manager:             'Manager DGASPC',
+    administrator:       'Administrator sistem',
   };
 
   const tabs = [
-    { id: 'profil',   label: '👤 Date personale' },
+    { id: 'profil',     label: '👤 Date personale' },
     { id: 'securitate', label: '🔒 Securitate' },
-    { id: 'sesiune',  label: 'ℹ️ Despre cont' },
+    { id: 'sesiune',    label: 'ℹ️ Despre cont' },
   ];
+
+  // Orașe disponibile pentru județul selectat
+  const estesBucuresti     = form.judet.startsWith('București');
+  const oraseDisponibile   = form.judet && !estesBucuresti ? (ORASE_PER_JUDET[form.judet] || []) : [];
 
   return (
     <Layout title="Profilul meu">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
-        {/* Header profil */}
+
+        {/* ── Header profil ── */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 700, flexShrink: 0 }}>
@@ -103,7 +181,7 @@ export default function Profil() {
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* ── Tabs ── */}
         <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
           {tabs.map((t) => (
             <button key={t.id} onClick={() => setTabActiv(t.id)}
@@ -145,6 +223,54 @@ export default function Profil() {
               <label>Număr de telefon</label>
               <input type="tel" className="form-input" value={form.telefon} onChange={set('telefon')} placeholder="07xx xxx xxx" />
             </div>
+
+            {/* ── Județ & Oraș — doar pentru cetățean ── */}
+            {esteCetatean && (
+              <>
+                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 16px', paddingTop: 16 }}>
+                  <p style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14 }}>
+                    📍 Adresa de domiciliu este folosită la completarea automată a cererilor.
+                  </p>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Județ domiciliu</label>
+                    <select
+                      className="form-input"
+                      value={form.judet}
+                      onChange={(e) => setJudet(e.target.value)}
+                    >
+                      <option value="">Alege județul...</option>
+                      {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Oraș / Comună</label>
+                    {estesBucuresti ? (
+                      <input
+                        type="text" className="form-input"
+                        value={form.judet} disabled
+                        style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
+                      />
+                    ) : (
+                      <select
+                        className="form-input"
+                        value={form.oras}
+                        onChange={set('oras')}
+                        disabled={!form.judet}
+                      >
+                        <option value="">
+                          {form.judet ? 'Alege orașul...' : 'Alege mai întâi județul'}
+                        </option>
+                        {oraseDisponibile.map(o => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="form-group">
               <label>CNP</label>
@@ -251,6 +377,7 @@ export default function Profil() {
             </div>
           </div>
         )}
+
       </div>
     </Layout>
   );

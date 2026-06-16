@@ -10,7 +10,6 @@ const ProgramareComisie  = require('./ProgramareComisie');
 const Notificare         = require('./Notificare');
 const IstoricActiuni     = require('./IstoricActiuni');
 const SolicitareMedicala = require('./SolicitareMedicala');
-const VerificareIdentitate = require('./VerificareIdentitate');
 const SablonDocument     = require('./SablonDocument');
 
 // ── Rol ↔ Utilizator ─────────────────────────────────────
@@ -26,10 +25,6 @@ ProfilMedic.belongsTo(Utilizator, { foreignKey: 'utilizator_id' });
 
 Utilizator.hasOne(ProfilCetatean, { foreignKey: 'utilizator_id', as: 'profilCetatean' });
 ProfilCetatean.belongsTo(Utilizator, { foreignKey: 'utilizator_id' });
-
-// ── Utilizator ↔ Verificare Identitate ───────────────────
-Utilizator.hasMany(VerificareIdentitate, { foreignKey: 'utilizator_id' });
-VerificareIdentitate.belongsTo(Utilizator, { foreignKey: 'utilizator_id' });
 
 // ── Cetățean ↔ Dosar ─────────────────────────────────────
 Utilizator.hasMany(Dosar, { foreignKey: 'cetatean_id', as: 'dosareProprii' });
@@ -76,6 +71,5 @@ module.exports = {
   Notificare,
   IstoricActiuni,
   SolicitareMedicala,
-  VerificareIdentitate,
-  SablonDocument,
+  SablonDocument
 };

@@ -1,3 +1,6 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
 const IstoricActiuni = sequelize.define('IstoricActiuni', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   utilizator_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -10,3 +13,5 @@ const IstoricActiuni = sequelize.define('IstoricActiuni', {
   createdAt: 'creat_la',   // nu efectuat_la
   updatedAt: false,
 });
+
+module.exports = IstoricActiuni;

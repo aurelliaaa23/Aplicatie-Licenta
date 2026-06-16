@@ -1,3 +1,6 @@
+const { DataTypes } = require('sequelize');
+const sequelize = require('../config/database');
+
 const Document = sequelize.define('Document', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   dosar_id: { type: DataTypes.INTEGER, allowNull: false },
@@ -17,3 +20,5 @@ const Document = sequelize.define('Document', {
   createdAt: 'creat_la',
   updatedAt: 'actualizat_la',
 });
+
+module.exports = Document;

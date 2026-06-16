@@ -51,14 +51,13 @@ router.get('/', verificaToken, async (req, res) => {
   try {
     let unde = {};
     
-    // Verificăm direct string-ul rolului, așa cum este în token
     if (req.utilizator.rol === 'funcționar') {
       unde = { funcționar_id: req.utilizator.id };
     }
 
     const programari = await ProgramareComisie.findAll({
       where: unde,
-      include: [{ model: Dosar }] // Includem modelul Dosar direct (așa cum e în index.js)
+      include: [{ model: Dosar }]
     });
     
     res.json(programari);
@@ -71,55 +70,42 @@ router.get('/', verificaToken, async (req, res) => {
 module.exports = router;
 
 // POST /api/programari
-router.post('/', verificaToken,
-  verificaRol('funcționar', 'manager', 'administrator'),
-  async (req, res) => {
-    try {
-      const { dosar_id, tip_comisie, data_ora, durata_minute, locatie } = req.body;
+router.get('/', verificaToken, async (req, res) => {
+  try {
+    const rol  = req.utilizator.Rol?.nume || req.utilizator.rol;
+    const id   = req.utilizator.id;
 
-      const dosar = await Dosar.findByPk(dosar_id, {
-        include: [{ model: Utilizator, as: 'cetatean' }],
+    if (rol === 'cetățean') {
+      // Cetățeanul vede programările dosarelor sale
+      const programari = await ProgramareComisie.findAll({
+        include: [{
+          model: Dosar,
+          where: { cetatean_id: id },
+          required: true,
+        }],
+        order: [['data_ora_programare', 'ASC']],
       });
-      if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
-
-      const programare = await ProgramareComisie.create({
-        dosar_id,
-        data_ora_programare: data_ora,
-        locatie,
-        detalii: tip_comisie ? `Comisie: ${tip_comisie}` : null,
-      });
-
-      // Actualizare status dosar
-      await dosar.update({ status: 'programat_comisie' });
-
-      // Notificare în platformă
-      await Notificare.create({
-        utilizator_id: dosar.cetățean_id,
-        titlu: 'Programare la comisie confirmată',
-        mesaj: `Ați fost programat(ă) pe ${new Date(data_ora).toLocaleDateString('ro-RO')} la comisia de ${tip_comisie}.`,
-      });
-
-      // Email cetățean
-      if (dosar.cetățean?.email) {
-        await trimiteEmailProgramare(
-          dosar.cetățean.email, dosar.cetățean.prenume,
-          data_ora, tip_comisie, locatie
-        );
-      }
-
-      // Socket
-      const io = req.app.get('io');
-      io.to(`user_${dosar.cetățean_id}`).emit('programare_noua', {
-        data_ora, tip_comisie, dosar_id,
-      });
-
-      await programare.update({ notificat_email: true });
-      res.status(201).json(programare);
-    } catch (err) {
-      res.status(500).json({ eroare: err.message });
+      return res.json(programari);
     }
+
+    // Funcționar/manager/admin
+    let unde = {};
+    if (['funcționar'].includes(rol)) {
+      // programările legate de dosarele alocate funcționarului
+      unde = {};
+    }
+
+    const programari = await ProgramareComisie.findAll({
+      where: unde,
+      include: [{ model: Dosar }],
+      order: [['data_ora_programare', 'ASC']],
+    });
+    res.json(programari);
+  } catch (err) {
+    console.error('Eroare la preluare programari:', err);
+    res.status(500).json({ eroare: err.message });
   }
-);
+});
 
 // PATCH /api/programari/:id/status
 router.patch('/:id/status', verificaToken,
