@@ -22,7 +22,7 @@ router.post('/upload', verificaToken, upload.single('fisier'), async (req, res) 
       utilizator_id: req.utilizator.id, dosar_id,
       actiune: 'Document încărcat',
       detalii: { tip_document, nume_fisier: req.file.originalname },
-      ip_adresa: req.ip,
+      adresa_ip: req.ip,
     });
 
     res.status(201).json(doc);
@@ -38,21 +38,19 @@ router.post('/semnatura', verificaToken, async (req, res) => {
     if (!semnatura_base64) return res.status(400).json({ eroare: 'Semnătură lipsă' });
 
     const doc = await Document.create({
-      dosar_id, utilizator_id: req.utilizator.id,
-      tip_document: 'semnatura',
-      semnatura_base64,
-      metadata_semnatura: {
-        timestamp: new Date().toISOString(),
-        utilizator_id: req.utilizator.id,
-        email: req.utilizator.email,
-        ip: req.ip,
-      },
+      dosar_id,
+      nume_fisier: 'Cerere_Evaluare_Handicap.pdf',
+      cale_fisier: `uploads/${numeFisier}`,
+      tip_document: 'cerere_evaluare',       // VARCHAR liber
+      status_document: 'incarcat',
+      semnat_digital: !!semnatura_base64,
+      date_semnatura: semnatura_base64 ? JSON.stringify({ timestamp: new Date(), utilizator_id: user.id }) : null,
     });
 
     await IstoricActiuni.create({
       utilizator_id: req.utilizator.id, dosar_id,
       actiune: 'Semnătură electronică aplicată',
-      ip_adresa: req.ip,
+      adresa_ip: req.ip,
     });
 
     res.status(201).json({ mesaj: 'Semnătură salvată cu succes', id: doc.id });
@@ -72,6 +70,17 @@ function eliminaDiacritice(str) {
     .replace(/ă/g, 'a').replace(/â/g, 'a').replace(/î/g, 'i')
     .replace(/Ș/g, 'S').replace(/Ț/g, 'T')
     .replace(/Ă/g, 'A').replace(/Â/g, 'A').replace(/Î/g, 'I');
+}
+
+// Calculează vârsta din CNP
+function calculeazaVarsta(cnp) {
+  if (!cnp || cnp.length !== 13) return '';
+  const s = parseInt(cnp.charAt(0));
+  let an = parseInt(cnp.substring(1, 3));
+  if (s === 1 || s === 2) an += 1900;
+  else if (s === 5 || s === 6) an += 2000;
+  else an += 1900;
+  return new Date().getFullYear() - an;
 }
 
 // ── POST /api/documente/genereaza-cerere-handicap ─────────────────────────
@@ -118,7 +127,7 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
        .text('DOMNULE/DOAMNA DIRECTOR,');
     doc.moveDown(1.5);
 
-    // Paragraf principal (aliniat stânga-dreapta / justify)
+    // Paragraf principal
     doc.fontSize(11).font('Helvetica')
        .text(`Subsemnatul(a) ${numeComplet} si legitimat(a) cu CI/BI seria ${serieCi} nr. ${numarCi} avand CNP ${cnp} cu domiciliul in orasul/localitatea ${oras}, judet/sector ${judet}, str. ${stradaDetaliata}, telefon ${telefon}, e-mail ${email} solicit evaluarea in cadrul Serviciului de Evaluare Complexa a Persoanelor Adulte cu Handicap, in vederea:`, {
          align: 'justify',
@@ -145,13 +154,12 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
     if (semnatura_base64) {
       const base64Data = semnatura_base64.replace(/^data:image\/png;base64,/, "");
       const imgBuffer = Buffer.from(base64Data, 'base64');
-      // Plasează semnătura un pic mai jos și la dreapta
       doc.image(imgBuffer, 340, yBazaSemnatura + 10, { width: 120 });
     }
 
     doc.moveDown(6);
 
-    // Footer / Notă GDPR (text mic)
+    // Footer / Notă GDPR
     doc.fontSize(8).font('Helvetica')
        .text('Datele dumneavoastra cu caracter personal sunt prelucrate de D.G.A.S.P.C. in conformitate cu art. 6 din Regulamentul UE 679/2016 in scopul indeplinirii atributiilor legale. Datele pot fi dezvaluite unor terti in baza unui temei legal justificat. Va puteti exercita drepturile prevazute in Regulamentul UE 679/2016, printr-o cerere scrisa, semnata si datata transmisa pe adresa D.G.A.S.P.C.', 50, doc.page.height - 100, {
          align: 'justify',
@@ -160,16 +168,25 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
 
     doc.end();
 
+    stream.on('error', (err) => {
+      console.error('Stream error cerere handicap:', err);
+      if (!res.headersSent) res.status(500).json({ eroare: 'Eroare la scrierea fișierului PDF.' });
+    });
+
     stream.on('finish', async () => {
-      // Salvăm documentul în baza de date
-      await Document.create({
-         dosar_id,
-         utilizator_id: user.id,
-         nume_fisier: 'Cerere_Evaluare_Handicap.pdf', // I-am schimbat și numele să fie mai profi
-         cale_fisier: `uploads/${numeFisier}`,
-         tip_document: 'alte' 
-      });
-      res.json({ mesaj: 'Cerere generată cu succes!' });
+      try {
+        await Document.create({
+           dosar_id,
+           utilizator_id: user.id,
+           nume_fisier: 'Cerere_Evaluare_Handicap.pdf',
+           cale_fisier: `uploads/${numeFisier}`,
+           tip_document: 'alte' 
+        });
+        res.json({ mesaj: 'Cerere generată cu succes!' });
+      } catch (dbErr) {
+        console.error('Eroare DB după generare cerere handicap:', dbErr);
+        if (!res.headersSent) res.status(500).json({ eroare: dbErr.message });
+      }
     });
 
   } catch (err) {
@@ -177,25 +194,6 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
     res.status(500).json({ eroare: err.message });
   }
 });
-
-// (Dacă nu o ai deja, adaug-o sus)
-function eliminaDiacritice(str) {
-  if (!str) return '';
-  return String(str).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/ș/g, 's').replace(/ț/g, 't').replace(/ă/g, 'a').replace(/â/g, 'a').replace(/î/g, 'i')
-    .replace(/Ș/g, 'S').replace(/Ț/g, 'T').replace(/Ă/g, 'A').replace(/Â/g, 'A').replace(/Î/g, 'I');
-}
-
-// Calculează vârsta din CNP
-function calculeazaVarsta(cnp) {
-  if (!cnp || cnp.length !== 13) return '';
-  const s = parseInt(cnp.charAt(0));
-  let an = parseInt(cnp.substring(1, 3));
-  if (s === 1 || s === 2) an += 1900;
-  else if (s === 5 || s === 6) an += 2000;
-  else an += 1900;
-  return new Date().getFullYear() - an;
-}
 
 // ── POST /api/documente/genereaza-scrisoare-medicala ──────────────────────
 router.post('/genereaza-scrisoare-medicala', verificaToken, async (req, res) => {
@@ -212,7 +210,6 @@ router.post('/genereaza-scrisoare-medicala', verificaToken, async (req, res) => 
     doc.pipe(stream);
 
     // Date prelucrate fără diacritice
-    const numePacient = eliminaDiacritice(`${cetatean.nume} ${cetatean.prenume}`);
     const anamnezaClean = eliminaDiacritice(anamneza);
     const princClean = eliminaDiacritice(diag_princ);
     const secClean = eliminaDiacritice(diag_sec);
@@ -260,20 +257,180 @@ router.post('/genereaza-scrisoare-medicala', verificaToken, async (req, res) => 
 
     doc.end();
 
+    stream.on('error', (err) => {
+      console.error('Stream error scrisoare medicala:', err);
+      if (!res.headersSent) res.status(500).json({ eroare: 'Eroare la scrierea fișierului PDF.' });
+    });
+
     stream.on('finish', async () => {
-      // 1. Salvăm PDF-ul la documentele dosarului
-      await Document.create({
-         dosar_id, utilizator_id: medic.id,
-         nume_fisier: `Scrisoare_Med_Dr_${medic.nume}.pdf`,
-         cale_fisier: `uploads/${numeFisier}`, tip_document: 'certificat_medical' 
-      });
-      // 2. Marcăm solicitarea ca finalizată ca să dispară din lista medicului
-      await SolicitareMedicala.update({ status: 'finalizat' }, { where: { id: solicitare_id } });
-      
-      res.json({ mesaj: 'Scrisoare generată cu succes!' });
+      try {
+        await Document.create({
+           dosar_id, utilizator_id: medic.id,
+           nume_fisier: `Scrisoare_Med_Dr_${medic.nume}.pdf`,
+           cale_fisier: `uploads/${numeFisier}`, tip_document: 'certificat_medical' 
+        });
+        if (solicitare_id) {
+          await SolicitareMedicala.update({ status: 'finalizat' }, { where: { id: solicitare_id } });
+        }
+        res.json({ mesaj: 'Scrisoare generată cu succes!' });
+      } catch (dbErr) {
+        console.error('Eroare DB după generare scrisoare:', dbErr);
+        if (!res.headersSent) res.status(500).json({ eroare: dbErr.message });
+      }
     });
   } catch (err) {
     res.status(500).json({ eroare: err.message });
+  }
+});
+
+// ── POST /api/documente/genereaza-referat-specialist ──────────────────────
+router.post('/genereaza-referat-specialist', verificaToken, async (req, res) => {
+  try {
+    const {
+      solicitare_id, dosar_id, cetatean, medic,
+      diagnostic, istoric, stadiu, tip_boala,
+      tratament, recomandari, speranta_vindecare,
+      semnatura_base64
+    } = req.body;
+
+    const { SolicitareMedicala } = require('../models');
+
+    const uploadPath = path.join(__dirname, '../uploads');
+    if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath);
+
+    const numeFisier = `Referat_Specialist_${dosar_id}_${Date.now()}.pdf`;
+    const doc = new PDFDocument({ margin: 50 });
+    const stream = fs.createWriteStream(path.join(uploadPath, numeFisier));
+    doc.pipe(stream);
+
+    // Valori afișate pentru câmpurile cu enum
+    const stadiuLabel = { incipient: 'Incipient', avansat: 'Avansat', terminal: 'Terminal' };
+    const tipBoalaLabel = { cronic: 'Cronica', acut: 'Acuta' };
+    const sperantaLabel = {
+      mare: 'Mare (prognostic favorabil, recuperare completa probabila)',
+      medie: 'Medie (prognostic rezervat partial, recuperare posibila cu tratament)',
+      rezervat: 'Rezervat (prognostic incert, evolutie imprevizibila)',
+      nerecuperabil: 'Nerecuperabil (afectiune ireversibila, fara perspectiva de recuperare)',
+    };
+
+    // ── ANTET ──
+    doc.fontSize(13).font('Helvetica-Bold')
+       .text('REFERAT DE SPECIALITATE', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica')
+       .text(`Specialitate: ${eliminaDiacritice(medic.specialitate || '')}`, { align: 'center' });
+    doc.moveDown(2);
+
+    // ── DATE PACIENT ──
+    doc.fontSize(12).font('Helvetica-Bold').text('DATE PACIENT');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica');
+    doc.text(`Numele: ${eliminaDiacritice(cetatean.nume)}, Prenumele: ${eliminaDiacritice(cetatean.prenume)}`);
+    doc.text(`CNP: ${cetatean.cnp}, Varsta: ${calculeazaVarsta(cetatean.cnp)} ani`);
+    doc.text(`Telefon: ${cetatean.telefon || '—'}`);
+    doc.text(`Email: ${eliminaDiacritice(cetatean.email || '')}`);
+    doc.moveDown(1.5);
+
+    // ── 1. DIAGNOSTIC ──
+    doc.fontSize(12).font('Helvetica-Bold').text('1. Diagnostic');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica').text(eliminaDiacritice(diagnostic), { indent: 10, lineGap: 3 });
+    doc.moveDown(1);
+
+    // ── 2. ISTORIC MEDICAL ──
+    doc.fontSize(12).font('Helvetica-Bold').text('2. Istoric Medical');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica').text(eliminaDiacritice(istoric), { indent: 10, lineGap: 3 });
+    doc.moveDown(1);
+
+    // ── 3. STADIU ──
+    doc.fontSize(12).font('Helvetica-Bold').text('3. Stadiu Boala');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica').text(stadiuLabel[stadiu] || stadiu, { indent: 10 });
+    doc.moveDown(1);
+
+    // ── 4. TIP BOALĂ ──
+    doc.fontSize(12).font('Helvetica-Bold').text('4. Tip Boala');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica').text(tipBoalaLabel[tip_boala] || tip_boala, { indent: 10 });
+    doc.moveDown(1);
+
+    // ── 5. TRATAMENT ──
+    doc.fontSize(12).font('Helvetica-Bold').text('5. Tratament');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica').text(eliminaDiacritice(tratament), { indent: 10, lineGap: 3 });
+    doc.moveDown(1);
+
+    // ── 6. RECOMANDĂRI ──
+    doc.fontSize(12).font('Helvetica-Bold').text('6. Recomandari');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica')
+       .text(recomandari ? eliminaDiacritice(recomandari) : 'Fara recomandari suplimentare.', { indent: 10, lineGap: 3 });
+    doc.moveDown(1);
+
+    // ── 7. SPERANȚĂ DE VINDECARE ──
+    doc.fontSize(12).font('Helvetica-Bold').text('7. Speranta de Vindecare');
+    doc.moveTo(50, doc.y).lineTo(doc.page.width - 50, doc.y).stroke();
+    doc.moveDown(0.5);
+    doc.fontSize(11).font('Helvetica')
+       .text(sperantaLabel[speranta_vindecare] || speranta_vindecare, { indent: 10 });
+    doc.moveDown(3);
+
+    // ── SEMNĂTURĂ ──
+    const yBazaSemnatura = doc.y;
+    doc.fontSize(11).font('Helvetica')
+       .text(`Data: ${new Date().toLocaleDateString('ro-RO')}`, 50, yBazaSemnatura);
+    doc.text(
+      `Medic specialist: Dr. ${eliminaDiacritice(medic.prenume)} ${eliminaDiacritice(medic.nume)}`,
+      300, yBazaSemnatura
+    );
+    doc.text(`Specialitate: ${eliminaDiacritice(medic.specialitate || '')}`, 300, yBazaSemnatura + 15);
+    doc.text('Semnatura:', 300, yBazaSemnatura + 30);
+
+    if (semnatura_base64) {
+      const base64Data = semnatura_base64.replace(/^data:image\/png;base64,/, '');
+      doc.image(Buffer.from(base64Data, 'base64'), 300, yBazaSemnatura + 45, { width: 130 });
+    }
+
+    doc.end();
+
+    stream.on('error', (err) => {
+      console.error('Stream error referat specialist:', err);
+      if (!res.headersSent) res.status(500).json({ eroare: 'Eroare la scrierea fișierului PDF.' });
+    });
+
+    stream.on('finish', async () => {
+      try {
+        await Document.create({
+          dosar_id,
+          utilizator_id: req.utilizator.id,
+          nume_fisier: `Referat_Specialist_Dr_${eliminaDiacritice(medic.nume)}.pdf`,
+          cale_fisier: `uploads/${numeFisier}`,
+          tip_document: 'certificat_medical',
+        });
+        if (solicitare_id) {
+          await SolicitareMedicala.update(
+            { status: 'finalizat' },
+            { where: { id: solicitare_id } }
+          );
+        }
+        res.json({ mesaj: 'Referat de specialitate generat cu succes!' });
+      } catch (dbErr) {
+        console.error('Eroare DB după generare referat:', dbErr);
+        if (!res.headersSent) res.status(500).json({ eroare: dbErr.message });
+      }
+    });
+
+  } catch (err) {
+    console.error('Eroare la generare referat specialist:', err);
+    if (!res.headersSent) res.status(500).json({ eroare: err.message });
   }
 });
 

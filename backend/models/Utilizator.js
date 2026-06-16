@@ -10,22 +10,19 @@ const Utilizator = sequelize.define('Utilizator', {
   parola_hash: { type: DataTypes.STRING(255), allowNull: false },
   telefon:     { type: DataTypes.STRING(20) },
   cnp:         { type: DataTypes.STRING(13), unique: true },
-  departament: { type: DataTypes.STRING(100) },
-  specialitate: { type: DataTypes.STRING, allowNull: true },
-  judet: { type: DataTypes.STRING, allowNull: true },
-  oras: { type: DataTypes.STRING, allowNull: true },
-    
 
-  // OTP — înlocuiește Google Authenticator
+  // OTP pentru autentificare în 2 pași
   cod_otp:         { type: DataTypes.STRING(6) },
   cod_otp_expiry:  { type: DataTypes.DATE },
 
-  // Contul trebuie verificat după înregistrare
-  email_verificat: { type: DataTypes.BOOLEAN, defaultValue: false },
+  // Stare cont
+  email_verificat:      { type: DataTypes.BOOLEAN, defaultValue: false },
+  activ:                { type: DataTypes.BOOLEAN, defaultValue: true },
+  foto_profil:          { type: DataTypes.STRING(255) },
+  judet:                { type: DataTypes.STRING(50) },
+  oras:                 { type: DataTypes.STRING(100) },
 
-  activ:       { type: DataTypes.BOOLEAN, defaultValue: true },
-  foto_profil: { type: DataTypes.STRING(255) },
-  rol_id:      { type: DataTypes.INTEGER, allowNull: false },
+  rol_id: { type: DataTypes.INTEGER, allowNull: false },
 }, {
   tableName: 'utilizatori',
   timestamps: true,
@@ -34,3 +31,9 @@ const Utilizator = sequelize.define('Utilizator', {
 });
 
 module.exports = Utilizator;
+
+// CÂMPURI ELIMINATE față de versiunea anterioară (mutate în tabele profil):
+// - departament  → profil_functionar.departament
+// - specialitate → profil_medic.specialitate
+// - judet        → profil_cetatean.judet
+// - oras         → profil_cetatean.oras

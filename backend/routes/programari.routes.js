@@ -45,26 +45,30 @@ async function trimiteEmailProgramare(email, prenume, data_ora, tip_comisie, loc
   }
 }
 
-// GET /api/programari
+
+// ── GET /api/programari ───────────────────────────────────
 router.get('/', verificaToken, async (req, res) => {
   try {
-    const { rol, id } = req.utilizator;
-    const rolNume = req.utilizator.Rol?.nume || rol;
-    let where = {};
-    if (['funcționar'].includes(rolNume)) where = { funcționar_id: id };
+    let unde = {};
+    
+    // Verificăm direct string-ul rolului, așa cum este în token
+    if (req.utilizator.rol === 'funcționar') {
+      unde = { funcționar_id: req.utilizator.id };
+    }
 
     const programari = await ProgramareComisie.findAll({
-      where,
-      include: [
-        { model: Dosar, attributes: ['id', 'numar_dosar', 'tip', 'cetățean_id'] },
-      ],
-      order: [['data_ora', 'ASC']],
+      where: unde,
+      include: [{ model: Dosar }] // Includem modelul Dosar direct (așa cum e în index.js)
     });
+    
     res.json(programari);
   } catch (err) {
+    console.error('Eroare la preluare programari:', err);
     res.status(500).json({ eroare: err.message });
   }
 });
+
+module.exports = router;
 
 // POST /api/programari
 router.post('/', verificaToken,
@@ -79,9 +83,10 @@ router.post('/', verificaToken,
       if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
 
       const programare = await ProgramareComisie.create({
-        dosar_id, tip_comisie, data_ora,
-        durata_minute: durata_minute || 30,
-        locatie, funcționar_id: req.utilizator.id,
+        dosar_id,
+        data_ora_programare: data_ora,
+        locatie,
+        detalii: tip_comisie ? `Comisie: ${tip_comisie}` : null,
       });
 
       // Actualizare status dosar
@@ -89,10 +94,9 @@ router.post('/', verificaToken,
 
       // Notificare în platformă
       await Notificare.create({
-        utilizator_id: dosar.cetățean_id, dosar_id,
+        utilizator_id: dosar.cetățean_id,
         titlu: 'Programare la comisie confirmată',
         mesaj: `Ați fost programat(ă) pe ${new Date(data_ora).toLocaleDateString('ro-RO')} la comisia de ${tip_comisie}.`,
-        tip: 'info',
       });
 
       // Email cetățean

@@ -293,9 +293,7 @@ export default function Dashboard() {
                     
                     {rol !== 'cetățean' && (
                       <td style={{ fontSize: 13 }}>
-                        {rol === 'medic' 
-                          ? `${d.cetatean?.prenume} ${d.cetatean?.nume}` 
-                          : `${d.cetățean?.prenume} ${d.cetățean?.nume}`}
+                        {d.cetatean?.prenume} {d.cetatean?.nume}
                       </td>
                     )}
 

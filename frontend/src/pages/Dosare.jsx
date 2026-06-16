@@ -53,8 +53,8 @@ export default function Dosare() {
       // Filtrare originală
       const matchCautare = !text ||
         d.numar_dosar?.toLowerCase().includes(text) ||
-        d.cetățean?.nume?.toLowerCase().includes(text) ||
-        d.cetățean?.prenume?.toLowerCase().includes(text) ||
+        d.cetatean?.nume?.toLowerCase().includes(text) ||
+        d.cetatean?.prenume?.toLowerCase().includes(text) ||
         TIP_LABEL[d.tip]?.toLowerCase().includes(text);
       const matchStatus     = !filtrStatus     || d.status === filtrStatus;
       const matchTip        = !filtrTip        || d.tip === filtrTip;
@@ -165,11 +165,11 @@ export default function Dosare() {
                     </td>
                     <td style={{ fontSize: 13, fontWeight: 500 }}>{d.tip}</td>
                     <td>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>
-                        {d.cetatean?.prenume} {d.cetatean?.nume}
-                      </div>
-                      <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{d.cetatean?.email}</div>
-                    </td>
+                        <div style={{ fontSize: 13, fontWeight: 500 }}>
+                          {d.cetatean?.prenume} {d.cetatean?.nume}
+                        </div>
+                        <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{d.cetatean?.email}</div>
+                      </td>
                     <td>
                       <span className={`badge badge-${d.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>
                         {d.status === 'finalizat' ? '✅ Finalizat' : '⏳ În așteptare'}
