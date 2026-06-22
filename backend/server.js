@@ -6,6 +6,9 @@ const http     = require('http');
 const { Server } = require('socket.io');
 const path     = require('path');
 
+// Adaugă linia asta sub app.use(express.json());
+
+
 const { sequelize, Rol } = require('./models');
 
 // ── Rute ────────────────────────────────────────────────
@@ -30,6 +33,7 @@ app.use(morgan('dev'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 // ── Rute API ─────────────────────────────────────────────
 app.use('/api/auth',       authRoutes);

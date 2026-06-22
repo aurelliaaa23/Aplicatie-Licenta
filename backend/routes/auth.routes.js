@@ -3,35 +3,29 @@ const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
 const { Utilizator, Rol, ProfilCetatean, ProfilMedic, ProfilFunctionar } = require('../models');
-const { verificaToken }   = require('../middleware/auth.middleware');
+const { verificaToken } = require('../middleware/auth.middleware');
 
 // ── Nodemailer ────────────────────────────────────────────────────────────────
 const mailer = nodemailer.createTransport({
-  service: 'gmail', // Folosim serviciul Gmail direct
-  auth: { 
-    user: process.env.EMAIL_USER, // Adresa ta de Gmail (ex: adresa.ta@gmail.com)
-    pass: process.env.EMAIL_PASS  // PAROLA DE APLICAȚIE (16 litere) de la Google
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
   },
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Generează cod OTP de 6 cifre
 function genOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Salvează codul în baza de date (expiră în 10 minute)
 async function salveazaOTP(utilizator) {
   const cod    = genOTP();
-  const expiry = new Date(Date.now() + 10 * 60 * 1000); // 10 min
-  
-  // Actualizăm folosind coloanele corecte: cod_otp și cod_otp_expiry
+  const expiry = new Date(Date.now() + 10 * 60 * 1000);
   await utilizator.update({ cod_otp: cod, cod_otp_expiry: expiry });
   return cod;
 }
 
-// Trimite OTP pe email
 async function trimiteEmailOTP(email, prenume, cod, subiect) {
   try {
     await mailer.sendMail({
@@ -67,76 +61,94 @@ async function trimiteEmailOTP(email, prenume, cod, subiect) {
   }
 }
 
+function maskEmail(email) {
+  const [user, domain] = email.split('@');
+  const masked = user[0] + '*'.repeat(Math.max(user.length - 2, 1)) + (user.length > 1 ? user.slice(-1) : '');
+  return `${masked}@${domain}`;
+}
+
 // ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const {
-      nume, prenume, email, parola, telefon, cnp, judet, oras,
+      nume, prenume, email, parola, telefon, cnp,
       tipCont,
-      // Funcționar
-      departament, institutie, 
-      // Medic
-      specialitate, 
-      // Cetățean
-      adresa_completa,
+      departament, institutie,
+      specialitate,
+      judet, oras,
     } = req.body;
- 
+
     if (!nume || !prenume || !email || !parola)
       return res.status(400).json({ eroare: 'Câmpurile obligatorii lipsesc' });
- 
+
     const exista = await Utilizator.findOne({ where: { email } });
     if (exista) return res.status(400).json({ eroare: 'Email deja înregistrat' });
- 
+
     const numeRol = tipCont || 'cetățean';
     const rol = await Rol.findOne({ where: { nume: numeRol } });
     if (!rol) return res.status(400).json({ eroare: `Rolul ${numeRol} nu există în baza de date.` });
- 
+
     const hash = await bcrypt.hash(parola, 12);
- 
-    // Creăm utilizatorul de bază (FĂRĂ departament/specialitate/judet/oras)
+
     const user = await Utilizator.create({
-      nume, prenume, email, oras, judet,
+      nume, prenume, email,
       parola_hash: hash,
       telefon,
-      cnp: numeRol === 'cetățean' ? cnp : null,
+      cnp: cnp || null,
       rol_id: rol.id,
       email_verificat: false,
     });
- 
-    // Creăm profilul specific în funcție de rol
-    if (numeRol === 'funcționar' || numeRol === 'funcționar_primărie' ||
-        numeRol === 'manager' || numeRol === 'administrator') {
+
+    // Creare profil specific
+    if (['funcționar', 'funcționar_primărie', 'manager', 'administrator'].includes(numeRol)) {
       await ProfilFunctionar.create({
         utilizator_id: user.id,
-        institutie: institutie || 'DGASPC',
-        departament: departament || 'General'
+        institutie:  institutie  || 'DGASPC',
+        departament: departament || 'General',
       });
-    }
- 
-    if (numeRol === 'medic') {
-      await ProfilMedic.create({
-        utilizator_id: user.id,
-        specialitate: specialitate || 'Nespecificat',
-      });
-    }
- 
-    if (numeRol === 'cetățean') {
-      // Profilul cetățeanului poate fi creat și mai târziu (la depunerea dosarului)
-      // dar dacă avem datele, îl creăm acum
-      if (adresa_completa) {
+      // Salvăm și județul/orașul funcționarului în ProfilCetatean (pentru alocare geografică)
+      if (judet && oras) {
         await ProfilCetatean.create({
-          utilizator_id: user.id,
-          adresa_completa: adresa_completa,
+          utilizator_id:   user.id,
+          judet, oras,
+          adresa_completa: `${oras}, ${judet}`,
         });
       }
     }
- 
-    const cod = await salveazaOTP(user);
+
+    if (numeRol === 'medic') {
+      await ProfilMedic.create({
+        utilizator_id:    user.id,
+        specialitate:     specialitate    || 'Nespecificat',
+        unitate_medicala: req.body.unitate_medicala || 'Nespecificat',
+        cod_parafa:       req.body.cod_parafa       || 'N/A',
+      });
+      // Salvăm și județul/orașul medicului în ProfilCetatean (pentru filtrare)
+      if (judet && oras) {
+        await ProfilCetatean.create({
+          utilizator_id:   user.id,
+          judet, oras,
+          adresa_completa: `${oras}, ${judet}`,
+        });
+      }
+    }
+
+    if (numeRol === 'cetățean') {
+      if (judet && oras) {
+        await ProfilCetatean.create({
+          utilizator_id:   user.id,
+          judet, oras,
+          adresa_completa: `${oras}, ${judet}`,
+        });
+      }
+    }
+
+    const cod    = await salveazaOTP(user);
     const emailOk = await trimiteEmailOTP(email, prenume, cod, 'Verificare cont DGASPC Digital');
- 
+
     res.status(201).json({
-      mesaj: 'Cont creat. S-a trimis codul pe e-mail.',
-      user_id: user.id,
+      mesaj:       'Cont creat. S-a trimis codul pe e-mail.',
+      user_id:     user.id,
       email_trimis: emailOk,
     });
   } catch (err) {
@@ -148,23 +160,15 @@ router.post('/register', async (req, res) => {
 // ── POST /api/auth/verifica-cont ─────────────────────────────────────────────
 router.post('/verifica-cont', async (req, res) => {
   try {
-    const { user_id, cod_email } = req.body; 
-    
+    const { user_id, cod_email } = req.body;
     const user = await Utilizator.findByPk(user_id);
     if (!user) return res.status(404).json({ eroare: 'Utilizator negăsit' });
-
-    if (user.email_verificat)
-      return res.status(400).json({ eroare: 'Contul este deja verificat' });
-
+    if (user.email_verificat) return res.status(400).json({ eroare: 'Contul este deja verificat' });
     if (!user.cod_otp || user.cod_otp !== String(cod_email))
       return res.status(401).json({ eroare: 'Codul de pe e-mail este incorect' });
-
     if (new Date() > new Date(user.cod_otp_expiry))
       return res.status(401).json({ eroare: 'Codul de e-mail a expirat.' });
-
-    // Activăm contul
     await user.update({ email_verificat: true, cod_otp: null, cod_otp_expiry: null });
-
     res.json({ mesaj: 'Cont verificat și activat cu succes!' });
   } catch (err) {
     res.status(500).json({ eroare: err.message });
@@ -175,16 +179,12 @@ router.post('/verifica-cont', async (req, res) => {
 router.post('/retrimite-otp', async (req, res) => {
   try {
     const { user_id, email } = req.body;
-
     const user = email
       ? await Utilizator.findOne({ where: { email } })
       : await Utilizator.findByPk(user_id);
-
     if (!user) return res.status(404).json({ eroare: 'Utilizator negăsit' });
-
-    const cod = await salveazaOTP(user);
+    const cod    = await salveazaOTP(user);
     const emailOk = await trimiteEmailOTP(user.email, user.prenume, cod, 'Cod nou de verificare DGASPC');
-    
     res.json({ mesaj: 'Cod nou trimis', email_trimis: emailOk });
   } catch (err) {
     res.status(500).json({ eroare: err.message });
@@ -203,28 +203,23 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ eroare: 'Credențiale incorecte sau cont inactiv' });
 
     const parolaOk = await bcrypt.compare(parola, user.parola_hash);
-    if (!parolaOk)
-      return res.status(401).json({ eroare: 'Credențiale incorecte' });
+    if (!parolaOk) return res.status(401).json({ eroare: 'Credențiale incorecte' });
 
     if (!user.email_verificat)
       return res.status(403).json({
-        eroare: 'Contul nu este verificat. Verificați email-ul.',
-        user_id: user.id,
+        eroare:      'Contul nu este verificat. Verificați email-ul.',
+        user_id:     user.id,
         neverificat: true,
       });
 
-    const cod = await salveazaOTP(user);
-    const emailOk = await trimiteEmailOTP(
-      user.email, user.prenume, cod,
-      'Cod de autentificare DGASPC Digital'
-    );
-
+    const cod    = await salveazaOTP(user);
+    const emailOk = await trimiteEmailOTP(user.email, user.prenume, cod, 'Cod de autentificare DGASPC Digital');
     if (!emailOk)
       return res.status(500).json({ eroare: 'Nu s-a putut trimite codul. Verificați configurarea email.' });
 
     res.json({
-      mesaj:   `Cod de verificare trimis pe ${maskEmail(user.email)}`,
-      user_id: user.id,
+      mesaj:        `Cod de verificare trimis pe ${maskEmail(user.email)}`,
+      user_id:      user.id,
       email_mascat: maskEmail(user.email),
     });
   } catch (err) {
@@ -246,46 +241,42 @@ router.post('/verifica-otp-login', async (req, res) => {
       ],
     });
     if (!user) return res.status(404).json({ eroare: 'Sesiune expirată. Reîncercați.' });
- 
     if (!user.cod_otp || user.cod_otp !== String(cod))
       return res.status(401).json({ eroare: 'Cod incorect' });
- 
     if (new Date() > new Date(user.cod_otp_expiry))
       return res.status(401).json({ eroare: 'Codul a expirat. Reveniți la login.' });
- 
+
     await user.update({ cod_otp: null, cod_otp_expiry: null });
- 
+
     const token = jwt.sign(
       { id: user.id, email: user.email, rol: user.Rol.nume, cnp: user.cnp },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN }
     );
- 
-    // Construim răspunsul cu datele din profilul specific
+
     const pf = user.profilFunctionar;
     const pm = user.profilMedic;
     const pc = user.profilCetatean;
- 
+
     res.json({
       token,
       utilizator: {
-        id: user.id,
-        nume: user.nume,
-        prenume: user.prenume,
-        email: user.email,
-        rol: user.Rol.nume,
-        telefon: user.telefon,
-        cnp: user.cnp,
-        foto_profil: user.foto_profil,
-        // Date din profiluri specifice (null dacă nu există)
+        id:               user.id,
+        nume:             user.nume,
+        prenume:          user.prenume,
+        email:            user.email,
+        rol:              user.Rol.nume,
+        telefon:          user.telefon,
+        cnp:              user.cnp,
+        foto_profil:      user.foto_profil,
         departament:      pf?.departament      || null,
         institutie:       pf?.institutie       || null,
         functie:          pf?.functie          || null,
         specialitate:     pm?.specialitate     || null,
         unitate_medicala: pm?.unitate_medicala || null,
         cod_parafa:       pm?.cod_parafa       || null,
-        judet:            pc?.judet            || null,
-        oras:             pc?.oras             || null,
+        judet:           user.judet  || null,
+        oras:            user.oras   || null,
         adresa_completa:  pc?.adresa_completa  || null,
       },
     });
@@ -297,7 +288,6 @@ router.post('/verifica-otp-login', async (req, res) => {
 // ── GET /api/auth/profil ──────────────────────────────────────────────────────
 router.get('/profil', verificaToken, async (req, res) => {
   try {
-    // Re-fetch cu profiluri incluse (req.utilizator vine fără include)
     const user = await Utilizator.findByPk(req.utilizator.id, {
       include: [
         Rol,
@@ -306,26 +296,30 @@ router.get('/profil', verificaToken, async (req, res) => {
         { model: ProfilCetatean,   as: 'profilCetatean' },
       ],
     });
- 
+
     const pf = user.profilFunctionar;
     const pm = user.profilMedic;
     const pc = user.profilCetatean;
- 
+
     res.json({
       utilizator: {
-        id: user.id,
-        nume: user.nume,
-        prenume: user.prenume,
-        email: user.email,
-        rol: user.Rol?.nume,
-        telefon: user.telefon,
-        cnp: user.cnp,
-        foto_profil: user.foto_profil,
+        id:               user.id,
+        nume:             user.nume,
+        prenume:          user.prenume,
+        email:            user.email,
+        rol:              user.Rol?.nume,
+        telefon:          user.telefon,
+        cnp:              user.cnp,
+        foto_profil:      user.foto_profil,
+        identitate_verificata: user.identitate_verificata,
         departament:      pf?.departament      || null,
         institutie:       pf?.institutie       || null,
+        functie:          pf?.functie          || null,
         specialitate:     pm?.specialitate     || null,
-        judet:            pc?.judet            || null,
-        oras:             pc?.oras             || null,
+        unitate_medicala: pm?.unitate_medicala || null,
+        cod_parafa:       pm?.cod_parafa       || null,
+        judet:           user.judet  || null,
+        oras:            user.oras   || null,
         adresa_completa:  pc?.adresa_completa  || null,
       },
     });
@@ -337,45 +331,32 @@ router.get('/profil', verificaToken, async (req, res) => {
 // ── PATCH /api/auth/profil ────────────────────────────────────────────────────
 router.patch('/profil', verificaToken, async (req, res) => {
   try {
-    const { prenume, nume, telefon, email } = req.body;
- 
-    // Actualizăm câmpurile comune din utilizatori
-    await req.utilizator.update({ prenume, nume, telefon, email });
- 
+    const { prenume, nume, telefon, email, judet, oras, adresa_completa } = req.body;
+
+    // Salvăm tot ce vine pe utilizator (inclusiv judet și oras)
+    await req.utilizator.update({
+      prenume, nume, telefon, email,
+      ...(judet !== undefined && { judet }),
+      ...(oras  !== undefined && { oras  }),
+    });
+
     const rol = req.utilizator.Rol?.nume || (await Rol.findByPk(req.utilizator.rol_id))?.nume;
- 
-    // Actualizăm profilul specific în funcție de rol
-    if (rol === 'cetățean') {
-      const { judet, oras, adresa_completa } = req.body;
+
+    // Doar adresa_completa (strada) merge în ProfilCetatean
+    if (rol === 'cetățean' && adresa_completa !== undefined) {
       const profil = await ProfilCetatean.findOne({ where: { utilizator_id: req.utilizator.id } });
       if (profil) {
-        await profil.update({ judet, oras, adresa_completa });
-      } else if (judet && oras) {
+        await profil.update({ adresa_completa });
+      } else {
         await ProfilCetatean.create({
-          utilizator_id: req.utilizator.id,
-          judet, oras,
-          adresa_completa: adresa_completa || `${oras}, ${judet}`,
+          utilizator_id:   req.utilizator.id,
+          judet:           judet || req.utilizator.judet || 'Nespecificat',
+          oras:            oras  || req.utilizator.oras  || 'Nespecificat',
+          adresa_completa: adresa_completa,
         });
       }
     }
- 
-    if (rol === 'funcționar' || rol === 'funcționar_primărie' ||
-        rol === 'manager' || rol === 'administrator') {
-      const { departament, institutie, functie } = req.body;
-      const profil = await ProfilFunctionar.findOne({ where: { utilizator_id: req.utilizator.id } });
-      if (profil) {
-        await profil.update({ departament, institutie, functie });
-      }
-    }
- 
-    if (rol === 'medic') {
-      const { specialitate, unitate_medicala, cod_parafa } = req.body;
-      const profil = await ProfilMedic.findOne({ where: { utilizator_id: req.utilizator.id } });
-      if (profil) {
-        await profil.update({ specialitate, unitate_medicala, cod_parafa });
-      }
-    }
- 
+
     res.json({ mesaj: 'Profil actualizat cu succes' });
   } catch (err) {
     res.status(500).json({ eroare: err.message });
@@ -390,7 +371,6 @@ router.patch('/schimba-parola', verificaToken, async (req, res) => {
     if (!ok) return res.status(401).json({ eroare: 'Parola curentă este incorectă' });
     if (!parola_noua || parola_noua.length < 8)
       return res.status(400).json({ eroare: 'Parola nouă trebuie să aibă minim 8 caractere' });
-
     const hash = await bcrypt.hash(parola_noua, 12);
     await req.utilizator.update({ parola_hash: hash });
     res.json({ mesaj: 'Parola schimbată cu succes' });
@@ -399,43 +379,31 @@ router.patch('/schimba-parola', verificaToken, async (req, res) => {
   }
 });
 
-// ── Helper: maschează email-ul (ex: i**@gmail.com) ───────────────────────────
-function maskEmail(email) {
-  const [user, domain] = email.split('@');
-  const masked = user[0] + '*'.repeat(Math.max(user.length - 2, 1)) + (user.length > 1 ? user.slice(-1) : '');
-  return `${masked}@${domain}`;
-}
-
 // ── GET /api/auth/medici ──────────────────────────────────────────────────────
-// Extrage toți medicii din baza de date pentru dropdown-urile de la DosarNou
 router.get('/medici', verificaToken, async (req, res) => {
   try {
     const rolMedic = await Rol.findOne({ where: { nume: 'medic' } });
     if (!rolMedic) return res.json([]);
- 
+
     const medici = await Utilizator.findAll({
-      where: { rol_id: rolMedic.id },
-      attributes: ['id', 'nume', 'prenume'],
+      where:      { rol_id: rolMedic.id, activ: true },
+      attributes: ['id', 'nume', 'prenume', 'email', 'judet', 'oras'],
       include: [{ model: ProfilMedic, as: 'profilMedic' }],
     });
- 
-    // Formatăm răspunsul să arate la fel ca înainte pentru frontend
-    const rezultat = medici.map(m => ({
-      id: m.id,
-      nume: m.nume,
-      prenume: m.prenume,
-      judet: m.judet,
+
+    res.json(medici.map(m => ({
+      id:               m.id,
+      nume:             m.nume,
+      prenume:          m.prenume,
+      email:            m.email,
+      judet:            m.judet || null,
+      oras:             m.oras  || null,
       specialitate:     m.profilMedic?.specialitate     || null,
-      // Nota: judet nu mai este pe utilizator, e pe profil_cetatean
-      // Medicii nu au profil_cetatean, deci judet vine din profil_medic dacă îl adăugați acolo
-      // sau puteți elimina filtrul pe judet din frontend
-    }));
- 
-    res.json(rezultat);
+      unitate_medicala: m.profilMedic?.unitate_medicala || null,
+    })));
   } catch (err) {
     res.status(500).json({ eroare: err.message });
   }
 });
- 
 
 module.exports = router;

@@ -4,7 +4,6 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
-// ── Județe & Orașe (identic cu Register.jsx) ──────────────
 const JUDETE = [
   'București - Sector 1', 'București - Sector 2', 'București - Sector 3',
   'București - Sector 4', 'București - Sector 5', 'București - Sector 6',
@@ -72,7 +71,6 @@ export default function Profil() {
     nume:    utilizator?.nume    || '',
     telefon: utilizator?.telefon || '',
     email:   utilizator?.email   || '',
-    // doar pentru cetățean
     judet:   utilizator?.judet   || '',
     oras:    utilizator?.oras    || '',
   });
@@ -84,7 +82,6 @@ export default function Profil() {
   const set  = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const setP = (k) => (e) => setParole((p) => ({ ...p, [k]: e.target.value }));
 
-  // La schimbarea județului resetăm și orașul
   const setJudet = (val) => {
     setForm((f) => ({ ...f, judet: val, oras: '' }));
   };
@@ -92,15 +89,24 @@ export default function Profil() {
   const salveazaProfil = async () => {
     setLoading(true);
     try {
-      const payload = { prenume: form.prenume, nume: form.nume, telefon: form.telefon, email: form.email };
+      const orasFinal = form.judet.startsWith('București') ? form.judet : form.oras;
+      
+      const payload = { 
+        prenume: form.prenume, 
+        nume: form.nume, 
+        telefon: form.telefon, 
+        email: form.email,
+        judet: form.judet,
+        oras: orasFinal
+      };
+      
       if (esteCetatean) {
-        const orasFinal = form.judet.startsWith('București') ? form.judet : form.oras;
-        payload.judet = form.judet;
-        payload.oras  = orasFinal;
         payload.adresa_completa = orasFinal ? `${orasFinal}, ${form.judet}` : form.judet;
       }
+      
       const { data } = await api.patch('/auth/profil', payload);
-      updateUtilizator(data.utilizator || payload);
+      // Suprascriem cu datele venite de la server pt siguranță
+      updateUtilizator({ ...utilizator, ...payload, ...data.utilizator });
       toast.success('Profilul a fost actualizat');
     } catch (err) {
       toast.error(err.response?.data?.eroare || 'Eroare la salvare');
@@ -152,7 +158,6 @@ export default function Profil() {
     { id: 'sesiune',    label: 'ℹ️ Despre cont' },
   ];
 
-  // Orașe disponibile pentru județul selectat
   const estesBucuresti     = form.judet.startsWith('București');
   const oraseDisponibile   = form.judet && !estesBucuresti ? (ORASE_PER_JUDET[form.judet] || []) : [];
 
@@ -160,7 +165,6 @@ export default function Profil() {
     <Layout title="Profilul meu">
       <div style={{ maxWidth: 680, margin: '0 auto' }}>
 
-        {/* ── Header profil ── */}
         <div className="card" style={{ marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
             <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'var(--blue)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, fontWeight: 700, flexShrink: 0 }}>
@@ -181,7 +185,6 @@ export default function Profil() {
           </div>
         </div>
 
-        {/* ── Tabs ── */}
         <div style={{ display: 'flex', gap: 2, marginBottom: 16, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 4 }}>
           {tabs.map((t) => (
             <button key={t.id} onClick={() => setTabActiv(t.id)}
@@ -198,7 +201,6 @@ export default function Profil() {
           ))}
         </div>
 
-        {/* ── Tab: Date personale ── */}
         {tabActiv === 'profil' && (
           <div className="card">
             <div className="card-title" style={{ marginBottom: 20 }}>Informații personale</div>
@@ -224,53 +226,43 @@ export default function Profil() {
               <input type="tel" className="form-input" value={form.telefon} onChange={set('telefon')} placeholder="07xx xxx xxx" />
             </div>
 
-            {/* ── Județ & Oraș — doar pentru cetățean ── */}
-            {esteCetatean && (
-              <>
-                <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 16px', paddingTop: 16 }}>
-                  <p style={{ fontSize: 12.5, color: 'var(--text-3)', marginBottom: 14 }}>
-                    📍 Adresa de domiciliu este folosită la completarea automată a cererilor.
-                  </p>
-                </div>
+            {/* Selector Județ și Oraș vizibil pentru toată lumea */}
+            <div className="form-row">
+              <div className="form-group">
+                <label>Județ domiciliu/activitate</label>
+                <select
+                  className="form-input"
+                  value={form.judet}
+                  onChange={(e) => setJudet(e.target.value)}
+                >
+                  <option value="">Alege județul...</option>
+                  {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
+                </select>
+              </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Județ domiciliu</label>
-                    <select
-                      className="form-input"
-                      value={form.judet}
-                      onChange={(e) => setJudet(e.target.value)}
-                    >
-                      <option value="">Alege județul...</option>
-                      {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="form-group">
-                    <label>Oraș / Comună</label>
-                    {estesBucuresti ? (
-                      <input
-                        type="text" className="form-input"
-                        value={form.judet} disabled
-                        style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
-                      />
-                    ) : (
-                      <select
-                        className="form-input"
-                        value={form.oras}
-                        onChange={set('oras')}
-                        disabled={!form.judet}
-                      >
-                        <option value="">
-                          {form.judet ? 'Alege orașul...' : 'Alege mai întâi județul'}
-                        </option>
-                        {oraseDisponibile.map(o => <option key={o} value={o}>{o}</option>)}
-                      </select>
-                    )}
-                  </div>
-                </div>
-              </>
-            )}
+              <div className="form-group">
+                <label>Oraș / Comună</label>
+                {estesBucuresti ? (
+                  <input
+                    type="text" className="form-input"
+                    value={form.judet} disabled
+                    style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
+                  />
+                ) : (
+                  <select
+                    className="form-input"
+                    value={form.oras}
+                    onChange={set('oras')}
+                    disabled={!form.judet}
+                  >
+                    <option value="">
+                      {form.judet ? 'Alege orașul...' : 'Alege mai întâi județul'}
+                    </option>
+                    {oraseDisponibile.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                )}
+              </div>
+            </div>
 
             <div className="form-group">
               <label>CNP</label>
@@ -292,7 +284,6 @@ export default function Profil() {
           </div>
         )}
 
-        {/* ── Tab: Securitate ── */}
         {tabActiv === 'securitate' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div className="card">
@@ -357,7 +348,6 @@ export default function Profil() {
           </div>
         )}
 
-        {/* ── Tab: Despre cont ── */}
         {tabActiv === 'sesiune' && (
           <div className="card">
             <div className="card-title" style={{ marginBottom: 16 }}>Informații despre cont</div>
