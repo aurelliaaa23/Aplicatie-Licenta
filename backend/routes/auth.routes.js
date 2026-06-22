@@ -84,7 +84,16 @@ router.post('/register', async (req, res) => {
     const exista = await Utilizator.findOne({ where: { email } });
     if (exista) return res.status(400).json({ eroare: 'Email deja înregistrat' });
 
-    const numeRol = tipCont || 'cetățean';
+
+    let numeRol = tipCont || 'cetățean';
+    
+    if (numeRol === 'funcționar') {
+      if (institutie === 'Primărie') numeRol = 'funcționar_primărie';
+      else if (institutie === 'Instituție Învățământ') numeRol = 'funcționar_scoala';
+      else if (institutie === 'Poliție') numeRol = 'funcționar_politie';
+      else numeRol = 'funcționar'; // Ramane implicit DGASPC
+    }
+
     const rol = await Rol.findOne({ where: { nume: numeRol } });
     if (!rol) return res.status(400).json({ eroare: `Rolul ${numeRol} nu există în baza de date.` });
 
@@ -96,6 +105,8 @@ router.post('/register', async (req, res) => {
       telefon,
       cnp: cnp || null,
       rol_id: rol.id,
+      judet,
+      oras,
       email_verificat: false,
     });
 
@@ -106,39 +117,19 @@ router.post('/register', async (req, res) => {
         institutie:  institutie  || 'DGASPC',
         departament: departament || 'General',
       });
-      // Salvăm și județul/orașul funcționarului în ProfilCetatean (pentru alocare geografică)
-      if (judet && oras) {
-        await ProfilCetatean.create({
-          utilizator_id:   user.id,
-          judet, oras,
-          adresa_completa: `${oras}, ${judet}`,
-        });
-      }
     }
 
     if (numeRol === 'medic') {
       await ProfilMedic.create({
         utilizator_id:    user.id,
         specialitate:     specialitate    || 'Nespecificat',
-        unitate_medicala: req.body.unitate_medicala || 'Nespecificat',
-        cod_parafa:       req.body.cod_parafa       || 'N/A',
       });
-      // Salvăm și județul/orașul medicului în ProfilCetatean (pentru filtrare)
-      if (judet && oras) {
-        await ProfilCetatean.create({
-          utilizator_id:   user.id,
-          judet, oras,
-          adresa_completa: `${oras}, ${judet}`,
-        });
-      }
     }
 
     if (numeRol === 'cetățean') {
       if (judet && oras) {
         await ProfilCetatean.create({
-          utilizator_id:   user.id,
-          judet, oras,
-          adresa_completa: `${oras}, ${judet}`,
+          utilizator_id:   user.id
         });
       }
     }

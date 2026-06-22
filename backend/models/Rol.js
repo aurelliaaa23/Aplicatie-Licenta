@@ -5,7 +5,7 @@ const Rol = sequelize.define('Rol', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   nume: {
     type: DataTypes.ENUM('cetățean', 'funcționar', 'medic', 'funcționar_primărie',
-      'reprezentant_școală', 'manager', 'administrator'),
+      'reprezentant_școală', 'manager', 'administrator', 'funcționar_poliție'),
     allowNull: false,
     unique: true,
   },
