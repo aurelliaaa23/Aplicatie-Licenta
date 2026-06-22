@@ -51,10 +51,11 @@ export default function Dosare() {
 
   const filtrateDosare = dosare.filter((d) => {
     const text = cautare.toLowerCase();
+    const cetateanObj = d.cetatean || d.Utilizator;
     const matchCautare = !text ||
       d.numar_dosar?.toLowerCase().includes(text) ||
-      d.cetatean?.nume?.toLowerCase().includes(text) ||
-      d.cetatean?.prenume?.toLowerCase().includes(text) ||
+      cetateanObj?.nume?.toLowerCase().includes(text) ||
+      cetateanObj?.prenume?.toLowerCase().includes(text) ||
       TIP_LABEL[d.tip]?.toLowerCase().includes(text);
 
     const matchStatus     = !filtrStatus     || d.status === filtrStatus;
@@ -66,10 +67,12 @@ export default function Dosare() {
 
   const filtrateSolicitari = solicitari.filter((s) => {
     const text = cautare.toLowerCase();
+    const dosarObj = s.dosar || s.Dosar;
+    const cetateanObj = s.cetatean || s.Utilizator;
     return !text ||
-      s.dosar?.numar_dosar?.toLowerCase().includes(text) ||
-      s.cetatean?.nume?.toLowerCase().includes(text) ||
-      s.cetatean?.prenume?.toLowerCase().includes(text);
+      dosarObj?.numar_dosar?.toLowerCase().includes(text) ||
+      cetateanObj?.nume?.toLowerCase().includes(text) ||
+      cetateanObj?.prenume?.toLowerCase().includes(text);
   });
 
   const titluPagina = isMedic 
@@ -160,39 +163,43 @@ export default function Dosare() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrateSolicitari.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5,
-                          color: 'var(--blue)', fontWeight: 500 }}>
-                          {s.dosar?.numar_dosar || `#${s.dosar_id}`}
-                        </span>
-                      </td>
-                      <td>
-                        <div style={{ fontSize: 13, fontWeight: 500 }}>
-                          {s.cetatean?.prenume} {s.cetatean?.nume}
-                        </div>
-                        <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                          {s.cetatean?.email}
-                        </div>
-                      </td>
-                      <td style={{ fontSize: 13 }}>{s.observatii || 'Document medical'}</td>
-                      <td>
-                        <span className={`badge badge-${s.status === 'finalizata' ? 'aprobat' : 'incomplet'}`}>
-                          {s.status === 'finalizata' ? '✓ Finalizat' : '⏳ În așteptare'}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
-                        {new Date(s.creat_la || s.createdAt).toLocaleDateString('ro-RO')}
-                      </td>
-                      <td>
-                        <Link to={`/dosar/${s.dosar_id}`}
-                          className={`btn btn-sm ${s.status === 'finalizata' ? 'btn-ghost' : 'btn-primary'}`}>
-                          {s.status === 'finalizata' ? 'Vezi dosar' : '✍️ Completează'}
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                  {filtrateSolicitari.map((s) => {
+                    const dosarObj = s.dosar || s.Dosar;
+                    const cetateanObj = s.cetatean || s.Utilizator;
+                    return (
+                      <tr key={s.id}>
+                        <td>
+                          <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5,
+                            color: 'var(--blue)', fontWeight: 500 }}>
+                            {dosarObj?.numar_dosar || `#${s.dosar_id}`}
+                          </span>
+                        </td>
+                        <td>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>
+                            {cetateanObj?.prenume} {cetateanObj?.nume}
+                          </div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                            {cetateanObj?.email}
+                          </div>
+                        </td>
+                        <td style={{ fontSize: 13 }}>{s.observatii || 'Document medical'}</td>
+                        <td>
+                          <span className={`badge badge-${s.status === 'finalizata' ? 'aprobat' : 'incomplet'}`}>
+                            {s.status === 'finalizata' ? '✓ Finalizat' : '⏳ În așteptare'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+                          {new Date(s.creat_la || s.createdAt).toLocaleDateString('ro-RO')}
+                        </td>
+                        <td>
+                          <Link to={`/dosar/${s.dosar_id}`}
+                            className={`btn btn-sm ${s.status === 'finalizata' ? 'btn-ghost' : 'btn-primary'}`}>
+                            {s.status === 'finalizata' ? 'Vezi dosar' : '✍️ Completează'}
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -227,45 +234,48 @@ export default function Dosare() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrateDosare.map((d) => (
-                    <tr key={d.id}>
-                      <td>
-                        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5,
-                          color: 'var(--blue)', fontWeight: 500 }}>
-                          {d.numar_dosar}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: 13 }}>{TIP_LABEL[d.tip] || d.tip}</td>
-                      {rol !== 'cetățean' && (
+                  {filtrateDosare.map((d) => {
+                    const cetateanObj = d.cetatean || d.Utilizator;
+                    return (
+                      <tr key={d.id}>
                         <td>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>
-                            {d.cetatean?.prenume} {d.cetatean?.nume}
-                          </div>
-                          <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
-                            {d.cetatean?.oras || d.cetatean?.judet || ''}
-                          </div>
+                          <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5,
+                            color: 'var(--blue)', fontWeight: 500 }}>
+                            {d.numar_dosar}
+                          </span>
                         </td>
-                      )}
-                      <td>
-                        <span className={`badge badge-${d.prioritate === 'urgent' ? 'danger' : 'default'}`}>
-                          {d.prioritate === 'urgent' ? '🔴 Urgent' : '🔵 Normal'}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge badge-${d.status}`}>
-                          {STATUS_LABEL[d.status] || d.status}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
-                        {new Date(d.creat_la).toLocaleDateString('ro-RO')}
-                      </td>
-                      <td>
-                        <Link to={`/dosar/${d.id}`} className="btn btn-sm btn-primary">
-                          Vezi ➡️
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
+                        <td style={{ fontSize: 13 }}>{TIP_LABEL[d.tip] || d.tip}</td>
+                        {rol !== 'cetățean' && (
+                          <td>
+                            <div style={{ fontSize: 13, fontWeight: 500 }}>
+                              {cetateanObj?.prenume} {cetateanObj?.nume}
+                            </div>
+                            <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                              {cetateanObj?.oras || cetateanObj?.judet || ''}
+                            </div>
+                          </td>
+                        )}
+                        <td>
+                          <span className={`badge badge-${d.prioritate === 'urgent' ? 'danger' : 'default'}`}>
+                            {d.prioritate === 'urgent' ? '🔴 Urgent' : '🔵 Normal'}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={`badge badge-${d.status}`}>
+                            {STATUS_LABEL[d.status] || d.status}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+                          {new Date(d.creat_la).toLocaleDateString('ro-RO')}
+                        </td>
+                        <td>
+                          <Link to={`/dosar/${d.id}`} className="btn btn-sm btn-primary">
+                            Vezi ➡️
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

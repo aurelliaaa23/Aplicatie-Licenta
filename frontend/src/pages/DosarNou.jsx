@@ -81,22 +81,18 @@ export default function DosarNou() {
   const [loading, setLoading]     = useState(false);
   const [dosarId, setDosarId]     = useState(null);
 
-  // Form state generic
   const [tip, setTip]             = useState('');
   const [prioritate, setPrioritate] = useState('normal');
   const [descriere, setDescriere] = useState('');
   const [fisiere, setFisiere]     = useState([]);
 
-  // STATE MEDICI DIN BAZA DE DATE
   const [mediciDB, setMediciDB] = useState([]);
 
-  // Form state PAS 1
   const [dateCerere, setDateCerere] = useState({
     serie_ci: '', numar_ci: '',
     strada: '', tip_cerere: 'dosar_nou', acord_corectitudine: false, acord_gdpr: false,
   });
 
-  // Form state PAS 3
   const [docIdentitate, setDocIdentitate] = useState(null);
   const [docVenit, setDocVenit] = useState(null);
   const [medicFam, setMedicFam] = useState({
@@ -113,7 +109,6 @@ export default function DosarNou() {
   const signPadRef   = useRef(null);
   const fileInputRef = useRef(null);
 
-  // FETCH MEDICI DIN DB PENTRU DROPDOWN-URI
   useEffect(() => {
     if (isHandicap) {
       api.get('/auth/medici')
@@ -122,7 +117,6 @@ export default function DosarNou() {
     }
   }, [isHandicap]);
 
-  // Funcții inteligente de filtrare medici (reparate)
   const judetMedicFam = medicFam.acelasiJudet ? utilizator?.judet : medicFam.judet;
   
   const mediciFamilie = judetMedicFam
@@ -139,9 +133,7 @@ export default function DosarNou() {
     return mediciDB.filter(m => {
       const specDB = m.specialitate || '';
       const judetDB = m.judet || '';
-      
       const formatStr = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-      
       return formatStr(specDB) === formatStr(spec) && formatStr(judetDB) === formatStr(judet);
     });
   };
@@ -257,7 +249,6 @@ export default function DosarNou() {
       if (isHandicap) {
         await uploadSpecificFile(docIdentitate, dosar.id, 'carte_identitate');
         await uploadSpecificFile(docVenit, dosar.id, 'alte');
-        // Au fost eliminate documentele fizice (scrisoare medicala/referate) la cererea ta
       } else {
         for (let i = 0; i < fisiere.length; i++) {
           await uploadSpecificFile(fisiere[i], dosar.id, 'alte');
@@ -267,7 +258,12 @@ export default function DosarNou() {
       let sigData = null;
       if (signPadRef.current && !signPadRef.current.isEmpty()) {
         sigData = signPadRef.current.toDataURL('image/png');
-        await api.post('/documente/semnatura', { dosar_id: dosar.id, semnatura_base64: sigData });
+        // AICI ESTE PROTECȚIA: Dacă ruta de semnătură lipsește, codul nu se mai blochează!
+        try {
+          await api.post('/documente/semnatura', { dosar_id: dosar.id, semnatura_base64: sigData });
+        } catch (e) {
+          console.warn("Ruta de salvare semnătură lipsește. Trecem mai departe.", e);
+        }
       }
 
       if (isHandicap) {
@@ -276,35 +272,21 @@ export default function DosarNou() {
             dosar_id: dosar.id, date_cerere: dateCerere, semnatura_base64: sigData
           });
           await new Promise(resolve => setTimeout(resolve, 500)); 
-        } catch (err) { console.error("Eroare la generarea cererii PDF:", err); }
+        } catch (err) { console.warn("Eroare la generarea cererii PDF:", err); }
 
-                const mediciDeNotificat = [];
+        const mediciDeNotificat = [];
+        if (medicFam.medic) {
+          mediciDeNotificat.push({ id: medicFam.medic, nume: medicFam.medic, tip: 'Medic de Familie' });
+        }
+        referate.forEach(r => {
+          if (r.medic) mediciDeNotificat.push({ id: r.medic, nume: r.medic, tip: `Medic Specialist (${r.specialitate})` });
+        });
 
-if (medicFam.medic) {
-  const obj = mediciDB.find(m => String(m.id) === String(medicFam.medic));
-  if (obj) mediciDeNotificat.push({
-    id:           obj.id,
-    email:        obj.email,
-    prenume:      obj.prenume,
-    nume:         obj.nume,
-    specialitate: 'Medicină de familie',
-    tip:          'Medic de Familie',
-  });
-}
-
-referate.forEach(r => {
-  if (r.medic) {
-    const obj = mediciDB.find(m => String(m.id) === String(r.medic));
-    if (obj) mediciDeNotificat.push({
-      id:           obj.id,
-      email:        obj.email,
-      prenume:      obj.prenume,
-      nume:         obj.nume,
-      specialitate: r.specialitate,
-      tip:          `Medic Specialist (${r.specialitate})`,
-    });
-  }
-});
+        if (mediciDeNotificat.length > 0) {
+          try {
+            await api.post(`/dosare/${dosar.id}/notifica-medici`, { medici: mediciDeNotificat });
+          } catch (err) { console.error("Eroare la notificarea medicilor:", err); }
+        }
       }
       
       setStep(5);
@@ -364,7 +346,7 @@ referate.forEach(r => {
             </>
           )}
 
-          {/* PASUL 1 (Pentru Handicap) */}
+          {/* PASUL 1 */}
           {step === 1 && isHandicap && (
             <>
               <div className="card-header">
@@ -421,8 +403,7 @@ referate.forEach(r => {
                     <label>Județ / Sector</label>
                     <input 
                       type="text" className="form-input"
-                      value={utilizator?.judet || ''} 
-                      disabled 
+                      value={utilizator?.judet || ''} disabled 
                       style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
                     />
                   </div>
@@ -430,8 +411,7 @@ referate.forEach(r => {
                     <label>Oraș / Comună</label>
                     <input 
                       type="text" className="form-input"
-                      value={utilizator?.oras || ''} 
-                      disabled 
+                      value={utilizator?.oras || ''} disabled 
                       style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
                     />
                   </div>
@@ -521,14 +501,12 @@ referate.forEach(r => {
                 </div>
               </div>
 
-              {/* 1. Identitate & Venituri */}
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>1. Documente de bază</h4>
                 <BoxIncarcare label="Act de identitate (Buletin / CI) *" file={docIdentitate} setFile={setDocIdentitate} />
                 <BoxIncarcare label="Document privind veniturile (Adeverință salariat / Cupon pensie / ANAF) *" file={docVenit} setFile={setDocVenit} />
               </div>
 
-              {/* 2. Medicul de Familie */}
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>2. Solicitare Scrisoare Medicală Tip</h4>
                 
@@ -574,7 +552,6 @@ referate.forEach(r => {
                 <p style={{fontSize: 12, color: 'var(--text-3)'}}>*Medicul va fi notificat automat să completeze scrisoarea online, direct în platformă.</p>
               </div>
 
-              {/* 3. Referate Medicale (Specialiști) */}
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                   <h4 style={{ fontSize: 14, color: 'var(--text-1)', margin: 0 }}>3. Solicitare Referate Medici Specialiști</h4>

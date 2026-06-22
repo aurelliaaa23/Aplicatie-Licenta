@@ -15,7 +15,6 @@ const mailer = nodemailer.createTransport({
   auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
 });
 
-// Mapare pentru a salva corect denumirea departamentului pe Dosar
 function mapTipLaDepartament(tip) {
   const map = {
     certificat_handicap: 'Evaluare Adulți (SECPAH)',
@@ -28,7 +27,6 @@ function mapTipLaDepartament(tip) {
   return map[tip] || 'Asistență Socială';
 }
 
-// Mapare flexibilă pentru a găsi funcționarii indiferent de variațiile de nume ale departamentelor
 function getDepartamenteEligibile(tip) {
   if (tip === 'certificat_handicap' || tip === 'evaluare_adulti') {
     return ['Evaluare Adulți (SECPAH)', 'Evaluare Complexă', 'Adulți cu Handicap', 'evaluare adulti(secpah)', 'evaluare adulti', 'SECPAH'];
@@ -39,16 +37,13 @@ function getDepartamenteEligibile(tip) {
   return ['Asistență Socială', 'General', 'Relații cu Publicul'];
 }
 
-// ── 1. GET /api/dosare/medici/solicitari (OBLIGATORIU SUS, DEASUPRA LA /:id) ──
+// ── 1. GET /api/dosare/medici/solicitari (REPARAT: SORTARE DUPĂ creat_la) ──
 router.get('/medici/solicitari', verificaToken, async (req, res) => {
   try {
     const solicitari = await SolicitareMedicala.findAll({
       where: { medic_id: req.utilizator.id },
-      include: [
-        { model: Dosar, as: 'dosar' },
-        { model: Utilizator, as: 'cetatean' }
-      ],
-      order: [['createdAt', 'DESC']]
+      include: [{ all: true }],
+      order: [['creat_la', 'DESC']] // FIX: Sequelize crapă dacă pui 'createdAt' dar tabelul folosește aliasul 'creat_la'
     });
     res.json(solicitari);
   } catch (err) {
@@ -71,9 +66,10 @@ router.get('/', verificaToken, async (req, res) => {
     } else if (numeRol === 'funcționar') {
       whereDosar = { functionar_id: utilizatorLogat.id };
     } else if (numeRol === 'funcționar_primărie') {
-      // Filtrăm strict după județul și orașul funcționarului de primărie
-      undeCetatean = { judet: utilizatorLogat.judet };
-      if (utilizatorLogat.oras) undeCetatean.oras = utilizatorLogat.oras;
+      undeCetatean = { judet: utilizatorLogat.judet || 'Nespecificat' };
+      if (utilizatorLogat.oras) {
+        undeCetatean.oras = { [Op.substring]: utilizatorLogat.oras.trim() };
+      }
     }
 
     const includeArray = [
@@ -99,7 +95,7 @@ router.get('/', verificaToken, async (req, res) => {
   }
 });
 
-// ── 3. POST /api/dosare (CREARE DOSAR + FALLBACK DE ALOCARE) ────────────────
+// ── 3. POST /api/dosare (CREARE DOSAR + E-MAIL PRIMĂRIE) ───────────────────
 router.post('/', verificaToken, verificaRol('cetățean'), async (req, res) => {
   try {
     const { tip, descriere, prioritate } = req.body;
@@ -114,34 +110,24 @@ router.post('/', verificaToken, verificaRol('cetățean'), async (req, res) => {
     if (rolFunc && cetatean) {
       const deptsPermise = getDepartamenteEligibile(tip);
       
-      // PAS 1: Căutăm MAI ÎNTÂI funcționari din ACELAȘI JUDEȚ și departament
       let functionariEligibili = await Utilizator.findAll({
-        where: {
-          rol_id: rolFunc.id,
-          activ: true,
-          judet: cetatean.judet // Filtru geografic
-        },
+        where: { rol_id: rolFunc.id, activ: true, judet: cetatean.judet },
         include: [{
-          model: ProfilFunctionar,
-          as: 'profilFunctionar',
+          model: ProfilFunctionar, as: 'profilFunctionar',
           where: { departament: { [Op.in]: deptsPermise } }
         }]
       });
 
-      // PAS 2 (FALLBACK): Dacă nu există funcționari în același județ pentru acel departament, 
-      // eliminăm filtrul geografic pentru a asigura totuși alocarea dosarului!
       if (functionariEligibili.length === 0) {
         functionariEligibili = await Utilizator.findAll({
           where: { rol_id: rolFunc.id, activ: true },
           include: [{
-            model: ProfilFunctionar,
-            as: 'profilFunctionar',
+            model: ProfilFunctionar, as: 'profilFunctionar',
             where: { departament: { [Op.in]: deptsPermise } }
           }]
         });
       }
 
-      // Verificăm numărul de dosare active pentru cei găsiți
       for (const f of functionariEligibili) {
         const activeCount = await Dosar.count({
           where: { 
@@ -149,15 +135,9 @@ router.post('/', verificaToken, verificaRol('cetățean'), async (req, res) => {
             status: { [Op.in]: ['depus', 'in_analiza', 'incomplet', 'in_asteptare_programare', 'programat_comisie'] } 
           }
         });
-        
-        // Alocăm primul funcționar care nu este sugrumat de muncă (mai puțin de 10 dosare active)
-        if (activeCount < 10) {
-          functionarAlocatId = f.id;
-          break;
-        }
+        if (activeCount < 10) { functionarAlocatId = f.id; break; }
       }
 
-      // PAS 3 (ULTIMUL FALLBACK): Dacă absolut toți funcționarii sunt plini, îl forțăm pe primul din listă
       if (!functionarAlocatId && functionariEligibili.length > 0) {
         functionarAlocatId = functionariEligibili[0].id;
       }
@@ -165,9 +145,7 @@ router.post('/', verificaToken, verificaRol('cetățean'), async (req, res) => {
 
     const dosar = await Dosar.create({
       numar_dosar:  numar,
-      tip,
-      descriere,
-      prioritate:   prioritate || 'normal',
+      tip, descriere, prioritate: prioritate || 'normal',
       cetatean_id:  req.utilizator.id,
       functionar_id: functionarAlocatId,
       departament:  deptDosar,
@@ -175,12 +153,35 @@ router.post('/', verificaToken, verificaRol('cetățean'), async (req, res) => {
     });
 
     await IstoricActiuni.create({
-      utilizator_id: req.utilizator.id,
-      dosar_id:      dosar.id,
-      actiune:       'Dosar creat și alocat automat',
-      detalii:       `Tip: ${tip}, Dosar: ${numar}, Funcționar: ${functionarAlocatId ? 'Alocat cu succes' : 'Nealocat (lipsă funcționari departament)'}`,
-      ip_adresa:     req.ip,
+      utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar creat și alocat automat',
+      detalii: `Tip: ${tip}, Dosar: ${numar}, Funcționar: ${functionarAlocatId ? 'Alocat' : 'Nealocat'}`,
+      adresa_ip: req.ip,
     }).catch(err => console.error("Eroare istoric:", err));
+
+    // FIX: NOTIFICĂM AUTOMAT PRIMĂRIA CĂ ARE O NOUĂ ANCHETĂ DE FĂCUT!
+    try {
+      const rolPrimarie = await Rol.findOne({ where: { nume: 'funcționar_primărie' } });
+      if (rolPrimarie && cetatean.judet && cetatean.oras) {
+        const primarii = await Utilizator.findAll({
+          where: { 
+            rol_id: rolPrimarie.id, 
+            activ: true, 
+            judet: cetatean.judet,
+            oras: { [Op.substring]: cetatean.oras }
+          }
+        });
+        for (const primarie of primarii) {
+          await mailer.sendMail({
+            from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
+            to: primarie.email,
+            subject: `[DGASPC] Solicitare Anchetă Socială - Dosar ${numar}`,
+            html: `<p>Bună ziua,</p>
+                   <p>A fost depus un nou dosar (<strong>${numar}</strong>) de către cetățeanul <strong>${cetatean.prenume} ${cetatean.nume}</strong> din localitatea dumneavoastră.</p>
+                   <p>Vă rugăm să accesați platforma pentru a efectua și încărca Ancheta Socială aferentă acestui dosar.</p>`
+          }).catch(err => console.error("Eroare trimitere email primarie:", err));
+        }
+      }
+    } catch(errMail) { console.error("Eroare cautare primarii:", errMail); }
 
     res.status(201).json(dosar);
   } catch (err) {
@@ -211,23 +212,21 @@ router.get('/:id', verificaToken, async (req, res) => {
 router.patch('/:id/status', verificaToken, async (req, res) => {
   try {
     const { status, motiv_respingere, documente_suplimentare } = req.body;
-    const dosar = await Dosar.findByPk(req.params.id, {
-       include: [{ model: Utilizator, as: 'cetatean' }]
-    });
+    const dosar = await Dosar.findByPk(req.params.id, { include: [{ model: Utilizator, as: 'cetatean' }] });
     if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
 
-    await dosar.update({ 
-      status, 
-      motiv_respingere: motiv_respingere || dosar.motiv_respingere,
-      descriere: documente_suplimentare ? `${dosar.descriere}\n\n[SOLICITARE DOCUMENTE]:\n${documente_suplimentare}` : dosar.descriere
-    });
+    const updateData = {};
+    if (status) updateData.status = status;
+    if (motiv_respingere !== undefined) updateData.motiv_respingere = motiv_respingere;
+    if (documente_suplimentare) {
+      updateData.descriere = `${dosar.descriere || ''}\n\n[SOLICITARE DOCUMENTE]:\n${documente_suplimentare}`;
+    }
+
+    await dosar.update(updateData);
 
     await IstoricActiuni.create({
-      utilizator_id: req.utilizator.id,
-      dosar_id:      dosar.id,
-      actiune:       `Status schimbat în: ${status}`,
-      detalii:       `Noul status: ${status}`,
-      ip_adresa:     req.ip,
+      utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: `Status schimbat în: ${status}`,
+      detalii: `Noul status: ${status}`, adresa_ip: req.ip,
     }).catch(err => console.error("Eroare istoric:", err));
 
     res.json({ mesaj: 'Status actualizat', dosar });
@@ -245,32 +244,26 @@ router.post('/:id/notifica-medici', verificaToken, async (req, res) => {
     const dosar = await Dosar.findByPk(dosarId, { include: [{ model: Utilizator, as: 'cetatean' }] });
     if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
 
-    const cetatean = dosar.cetatean;
-
     for (const m of medici) {
-      const medicCurent = await Utilizator.findByPk(m.id);
-      if (!medicCurent) continue;
+      try {
+        const medicCurent = await Utilizator.findByPk(m.id);
+        if (!medicCurent) continue;
 
-      await SolicitareMedicala.create({
-        medic_id: medicCurent.id, 
-        cetatean_id: cetatean.id,
-        dosar_id: dosarId, 
-        status: 'in_asteptare',
-        observatii: m.tip
-      });
+        await SolicitareMedicala.create({
+          medic_id: medicCurent.id, cetatean_id: dosar.cetatean.id, dosar_id: dosarId, 
+          status: 'in_asteptare', observatii: m.tip
+        });
 
-      await mailer.sendMail({
-        from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
-        to: medicCurent.email,
-        subject: `[DGASPC] Solicitare Medicală - ${cetatean.prenume} ${cetatean.nume}`,
-        html: `<p>Stimate/ă Dr. ${medicCurent.nume},</p><p>Aveți o nouă solicitare medicală pentru pacientul ${cetatean.prenume} ${cetatean.nume}. Vă rugăm să accesați platforma pentru a completa documentele necesare.</p>`
-      }).catch(console.error);
+        await mailer.sendMail({
+          from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
+          to: medicCurent.email,
+          subject: `[DGASPC] Solicitare Medicală - ${dosar.cetatean.prenume} ${dosar.cetatean.nume}`,
+          html: `<p>Stimate/ă Dr. ${medicCurent.nume},</p><p>Aveți o nouă solicitare medicală pentru pacientul ${dosar.cetatean.prenume} ${dosar.cetatean.nume}. Vă rugăm să accesați platforma pentru a completa documentele necesare.</p>`
+        }).catch(console.error);
+      } catch (errInner) { console.error("Eroare procesare medic:", errInner); }
     }
-
     res.json({ mesaj: 'Medicii au fost notificați cu succes!' });
-  } catch (err) {
-    res.status(500).json({ eroare: err.message });
-  }
+  } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
 // ── 7. POST /api/dosare/:id/scrisoare-medicala (SALVARE PDF MEDIC) ─────────
@@ -279,8 +272,8 @@ router.post('/:id/scrisoare-medicala', verificaToken, async (req, res) => {
     const dosarId = req.params.id;
     const { nume, prenume, cnp, varsta, anamneza, diagnostic_principal, diagnostic_secundar, internari, deplasabil, semnatura_base64 } = req.body;
 
-    const dir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const fileName = `Scrisoare_Medicala_${Date.now()}.pdf`;
     const filePath = path.join(dir, fileName);
@@ -304,9 +297,7 @@ router.post('/:id/scrisoare-medicala', verificaToken, async (req, res) => {
     doc.moveDown();
     doc.font('Helvetica-Bold').text('4. Internări:');
     if (internari && internari.length > 0) {
-      internari.forEach((int, i) => {
-         doc.font('Helvetica').text(`${i+1}. ${int.unitate} (${int.data_inceput} - ${int.data_sfarsit}) | Diagnostic: ${int.diagnostic}`);
-      });
+      internari.forEach((int, i) => { doc.font('Helvetica').text(`${i+1}. ${int.unitate} (${int.data_inceput} - ${int.data_sfarsit}) | Diagnostic: ${int.diagnostic}`); });
     } else {
       doc.font('Helvetica').text('Fără internări declarate.');
     }
@@ -319,36 +310,23 @@ router.post('/:id/scrisoare-medicala', verificaToken, async (req, res) => {
     doc.text('Semnătura și parafa medicului:');
     if (semnatura_base64) {
       const base64Data = semnatura_base64.replace(/^data:image\/(png|jpeg);base64,/, "");
-      const imgBuffer = Buffer.from(base64Data, 'base64');
-      doc.image(imgBuffer, { width: 150 });
+      doc.image(Buffer.from(base64Data, 'base64'), { width: 150 });
     }
     doc.end();
 
     stream.on('finish', async () => {
       await Document.create({
-        dosar_id: dosarId,
-        utilizator_id: req.utilizator.id,
-        tip_document: 'certificat_medical',
-        nume_fisier: fileName,
-        cale_fisier: `uploads/${fileName}`,
-        semnatura_base64: semnatura_base64,
-        validat: true 
+        dosar_id: dosarId, utilizator_id: req.utilizator.id, tip_document: 'certificat_medical',
+        nume_fisier: fileName, cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, validat: true 
       });
 
-      const solicitare = await SolicitareMedicala.findOne({
-         where: { dosar_id: dosarId, medic_id: req.utilizator.id }
-      });
-      if (solicitare) {
-         await solicitare.update({ status: 'finalizata' });
-      }
+      const solicitare = await SolicitareMedicala.findOne({ where: { dosar_id: dosarId, medic_id: req.utilizator.id } });
+      if (solicitare) await solicitare.update({ status: 'finalizata' });
 
       res.json({ mesaj: 'Scrisoarea medicală a fost generată și atașată!' });
     });
 
-  } catch (err) {
-    console.error("Eroare generare scrisoare:", err);
-    res.status(500).json({ eroare: err.message });
-  }
+  } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
 // ── 8. POST /api/dosare/:id/ancheta-sociala (SALVARE PDF PRIMĂRIE) ──────────
@@ -357,8 +335,8 @@ router.post('/:id/ancheta-sociala', verificaToken, async (req, res) => {
     const dosarId = req.params.id;
     const { nume, prenume, cnp, conditii_locuit, situatie_familiala, venituri, recomandare, semnatura_base64 } = req.body;
 
-    const dir = path.join(__dirname, '../uploads');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
     const fileName = `Ancheta_Sociala_${Date.now()}.pdf`;
     const filePath = path.join(dir, fileName);
@@ -389,68 +367,31 @@ router.post('/:id/ancheta-sociala', verificaToken, async (req, res) => {
     doc.text('Semnătura funcționar primărie:');
     if (semnatura_base64) {
       const base64Data = semnatura_base64.replace(/^data:image\/(png|jpeg);base64,/, "");
-      const imgBuffer = Buffer.from(base64Data, 'base64');
-      doc.image(imgBuffer, { width: 150 });
+      doc.image(Buffer.from(base64Data, 'base64'), { width: 150 });
     }
     doc.end();
 
     stream.on('finish', async () => {
       await Document.create({
-        dosar_id: dosarId,
-        utilizator_id: req.utilizator.id,
-        tip_document: 'ancheta_sociala',
-        nume_fisier: fileName,
-        cale_fisier: `uploads/${fileName}`,
-        semnatura_base64: semnatura_base64,
-        validat: true 
+        dosar_id: dosarId, utilizator_id: req.utilizator.id, tip_document: 'ancheta_sociala',
+        nume_fisier: fileName, cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, validat: true 
       });
       res.json({ mesaj: 'Ancheta socială a fost generată și atașată dosarului!' });
     });
 
-  } catch (err) {
-    res.status(500).json({ eroare: err.message });
-  }
-});
-
-// ── 9. POST /api/dosare/:id/programeaza ────────────────────────────────────
-router.post('/:id/programeaza', verificaToken, async (req, res) => {
-  try {
-    const { data_programare, ora } = req.body;
-    const dosar = await Dosar.findByPk(req.params.id);
-    if(!dosar) return res.status(404).json({ eroare: 'Dosar negasit' });
-
-    const data_ora = new Date(`${data_programare}T${ora}:00`);
-
-    await ProgramareComisie.create({
-      dosar_id: dosar.id,
-      funcționar_id: dosar.functionar_id, 
-      tip_comisie: dosar.tip,
-      data_ora_programare: data_ora, 
-      locatie: 'Sediul Central DGASPC',
-      status: 'programat' 
-    });
-
-    await dosar.update({ status: 'programat_comisie' });
-    res.json({ mesaj: 'Programarea a fost înregistrată!' });
-  } catch (err) {
-     res.status(500).json({ eroare: err.message });
-  }
+  } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
 // ── 10. POST /api/dosare/:id/finalizare-comisie (GENEREAZĂ CERTIFICAT/RESPINGE) ──
 router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
   try {
     const { actiune, grad, revizuire_luni, motiv } = req.body;
-    const dosar = await Dosar.findByPk(req.params.id, {
-      include: [{ model: Utilizator, as: 'cetatean' }]
-    });
+    const dosar = await Dosar.findByPk(req.params.id, { include: [{ model: Utilizator, as: 'cetatean' }] });
     
     if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
 
-    // CAZ 1: COMISIA RESPINGE DOSARUL
     if (actiune === 'respinge') {
       await dosar.update({ status: 'respins', motiv_respingere: motiv });
-      
       await mailer.sendMail({
         from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
         to: dosar.cetatean.email,
@@ -459,25 +400,19 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
                <p>Dosarul dumneavoastră a fost evaluat de comisia de specialitate și a fost <strong>RESPINS</strong>.</p>
                <div style="background:#fce8e6; padding:15px; border-left:4px solid #c5221f; margin:20px 0;">
                  <p style="margin:0; color:#c5221f;"><strong>Motivul respingerii:</strong><br/>${motiv}</p>
-               </div>
-               <p>Pentru mai multe detalii, vă rugăm să accesați contul dumneavoastră din platformă.</p>`
+               </div>`
       }).catch(console.error);
 
       await IstoricActiuni.create({
-        utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar respins de comisie', detalii: `Motiv: ${motiv}`, ip_adresa: req.ip
+        utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar respins', detalii: `Motiv: ${motiv}`, adresa_ip: req.ip
       }).catch(e => console.error(e));
 
       return res.json({ mesaj: 'Dosar respins! Cetățeanul a fost notificat.' });
     }
 
-    // CAZ 2: COMISIA APROBĂ DOSARUL ȘI GENEREAZĂ CERTIFICATUL
     if (actiune === 'aproba') {
-      const fs = require('fs');
-      const path = require('path');
-      const PDFDocument = require('pdfkit');
-
-      const dir = path.join(__dirname, '../uploads');
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+      const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       
       const fileName = `Certificat_Handicap_${Date.now()}.pdf`;
       const filePath = path.join(dir, fileName);
@@ -485,33 +420,25 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
       const doc = new PDFDocument({ margin: 50 });
       doc.pipe(stream);
 
-      // Generare vizuală PDF (Certificat)
       doc.fontSize(16).font('Helvetica-Bold').text('CERTIFICAT', { align: 'center' });
       doc.fontSize(14).text('de încadrare în grad de handicap', { align: 'center' });
       doc.moveDown(2);
-      
       doc.fontSize(12).font('Helvetica').text('Comisia de evaluare persoane adulte cu handicap, constituită în temeiul Legii nr.448/2006, privind protecția și promovarea drepturilor persoanelor cu handicap, republicată, cu modificările și completările ulterioare, evaluând dosarul și propunerea serviciului de evaluare complexă a persoanelor adulte cu handicap:', { align: 'justify' });
       doc.moveDown();
-      
       doc.font('Helvetica-Bold').text(`Privind pe domnul/doamna: ${dosar.cetatean.prenume} ${dosar.cetatean.nume}`);
       doc.text(`C.N.P.: ${dosar.cetatean.cnp || '..........................'}`);
       doc.text(`Domiciliul: Județ/Oraș ${dosar.cetatean.judet || ''} ${dosar.cetatean.oras || ''}`);
       doc.moveDown();
-
       doc.font('Helvetica').text('Stabilește următoarele:');
       doc.moveDown();
       doc.font('Helvetica-Bold').text(`1. Se încadrează în gradul de handicap: ${grad ? grad.toUpperCase() : 'NESPECIFICAT'}`);
       
       let valabilitateText = "Permanent (Nelimitat)";
       let dataRevizuire = "Nu este cazul";
-      
       if (revizuire_luni && revizuire_luni !== 'nelimitat') {
-        const data = new Date();
-        data.setMonth(data.getMonth() + parseInt(revizuire_luni));
-        valabilitateText = `${revizuire_luni} luni`;
-        dataRevizuire = data.toLocaleDateString('ro-RO');
+        const data = new Date(); data.setMonth(data.getMonth() + parseInt(revizuire_luni));
+        valabilitateText = `${revizuire_luni} luni`; dataRevizuire = data.toLocaleDateString('ro-RO');
       }
-
       doc.text(`2. Valabilitate: ${valabilitateText}`);
       doc.text(`3. Termen de revizuire: ${dataRevizuire}`);
       doc.moveDown(4);
@@ -520,35 +447,30 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
       doc.end();
 
       stream.on('finish', async () => {
-        // Atașează certificatul la dosar
         await Document.create({
           dosar_id: dosar.id, utilizator_id: req.utilizator.id, tip_document: 'decizie',
-          nume_fisier: 'Certificat_Incadrare_Handicap.pdf', cale_fisier: `uploads/${fileName}`, validat: true
+          nume_fisier: 'Certificat_Incadrare_Handicap.pdf', cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, validat: true
         });
         
         await dosar.update({ status: 'aprobat' });
 
         await IstoricActiuni.create({
-          utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar aprobat de comisie', detalii: `Certificat emis. Grad: ${grad}`, ip_adresa: req.ip
+          utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar aprobat', detalii: `Certificat emis. Grad: ${grad}`, adresa_ip: req.ip
         }).catch(e => console.error(e));
 
-        // Trimite email cetățeanului
         await mailer.sendMail({
           from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
           to: dosar.cetatean.email,
           subject: `[DGASPC] Certificat de Handicap Emis - Dosar ${dosar.numar_dosar}`,
           html: `<p>Stimate/ă ${dosar.cetatean.prenume} ${dosar.cetatean.nume},</p>
-                 <p>Vă informăm cu bucurie că dosarul a fost <strong>APROBAT</strong> de comisia de evaluare.</p>
-                 <p>Certificatul dumneavoastră de încadrare în grad de handicap a fost emis în format electronic. Îl puteți vizualiza și descărca direct din secțiunea "Documente atașate" a dosarului dumneavoastră din platformă.</p>`
+                 <p>Vă informăm cu bucurie că dosarul a fost <strong>APROBAT</strong> de comisie.</p>
+                 <p>Certificatul dumneavoastră a fost emis în format electronic. Îl puteți descărca direct din secțiunea "Documente atașate" a dosarului.</p>`
         }).catch(console.error);
 
         res.json({ mesaj: 'Certificat generat și dosar aprobat cu succes!' });
       });
     }
-  } catch (err) {
-    console.error("Eroare la finalizare comisie:", err);
-    res.status(500).json({ eroare: err.message });
-  }
+  } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
 // ── 11. PATCH /api/dosare/document/:docId/aprobare (APROBARE DOCUMENT) ─────
@@ -558,16 +480,12 @@ router.patch('/document/:docId/aprobare', verificaToken, async (req, res) => {
     if (!doc) return res.status(404).json({ eroare: 'Documentul nu a fost găsit' });
 
     await doc.update({ validat: true });
-
     await IstoricActiuni.create({
-      utilizator_id: req.utilizator.id, dosar_id: doc.dosar_id, actiune: 'Document aprobat', detalii: `Documentul ${doc.nume_fisier || doc.tip_document} a fost validat.`, ip_adresa: req.ip,
+      utilizator_id: req.utilizator.id, dosar_id: doc.dosar_id, actiune: 'Document aprobat', detalii: `Validat: ${doc.nume_fisier}`, adresa_ip: req.ip,
     }).catch(err => console.error("Eroare istoric:", err));
 
     res.json({ mesaj: 'Document validat cu succes' });
-  } catch (err) {
-    console.error("Eroare la aprobare document:", err);
-    res.status(500).json({ eroare: err.message });
-  }
+  } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
 module.exports = router;
