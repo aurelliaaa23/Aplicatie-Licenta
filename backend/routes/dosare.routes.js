@@ -95,7 +95,8 @@ router.get('/', verificaToken, async (req, res) => {
     }
 
     const includeArray = [
-      { model: Utilizator, as: 'functionar' }
+      { model: Utilizator, as: 'functionar' },
+      { model: Document }
     ];
 
     if (undeCetatean) {
@@ -220,7 +221,8 @@ router.get('/:id', verificaToken, async (req, res) => {
         { model: Utilizator, as: 'cetatean' },
         { model: Utilizator, as: 'functionar' },
         { model: Document },
-        { model: ProgramareComisie }
+        { model: ProgramareComisie },
+        { model: SolicitareMedicala, as: 'solicitari' }
       ]
     });
     if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });

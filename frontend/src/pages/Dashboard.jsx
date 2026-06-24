@@ -1,12 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../hooks/useSocket';
 import api from '../services/api';
 
-// ── Icoane ──────────────────────────────────────────
 function Ico({ path, size = 20, color }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
@@ -28,7 +26,6 @@ const TIP_LABEL = {
   evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
 };
 
-// ── Componente mici ──────────────────────────────────
 function StatCard({ icon, iconClass, value, label }) {
   return (
     <div className="stat-card">
@@ -65,7 +62,6 @@ function NotifPanel({ notificari, onClose, onMarkAll }) {
   );
 }
 
-// ── Dashboard ────────────────────────────────────────
 export default function Dashboard() {
   const { utilizator } = useAuth();
   const [dosare, setDosare]         = useState([]);
@@ -83,7 +79,6 @@ export default function Dashboard() {
     Promise.all([fetchDosare(), fetchNotificari()]).finally(() => setLoading(false));
   }, []);
 
-  // Închide panoul la click outside
   useEffect(() => {
     const handler = (e) => {
       if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotif(false);
@@ -92,8 +87,7 @@ export default function Dashboard() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-
-    const fetchDosare = async () => {
+  const fetchDosare = async () => {
     try {
       if (rol === 'medic') {
         const { data } = await api.get('/dosare/medici/solicitari');
@@ -104,7 +98,6 @@ export default function Dashboard() {
       }
     } catch {}
   };
-    
 
   const fetchNotificari = async () => {
     try {
@@ -120,24 +113,33 @@ export default function Dashboard() {
     } catch {}
   };
 
-  // ── Statistici ──────────────────────────────────────
-  const stats = rol === 'medic' ? {
-    total:     dosare.length,
-    active:    dosare.filter((d) => d.status !== 'finalizat').length,
-    aprobate:  dosare.filter((d) => d.status === 'finalizat').length,
-    urgente:   0, // Solicitările medicale nu folosesc neapărat câmpul urgent în listă
-    incomplet: 0,
-  } : {
-    total:     dosare.length,
-    active:    dosare.filter((d) => ['depus','in_analiza','incomplet','programat_comisie'].includes(d.status)).length,
-    aprobate:  dosare.filter((d) => d.status === 'aprobat').length,
-    urgente:   dosare.filter((d) => d.prioritate === 'urgent').length,
-    incomplet: dosare.filter((d) => d.status === 'incomplet').length,
-  };
+  // --- LOGICĂ ACTUALIZATĂ PENTRU CARDURI STATISTICI ---
+  let stats = { total: dosare.length, active: 0, aprobate: 0, urgente: 0, incomplet: 0, completate: 0 };
+  
+  if (rol === 'medic') {
+    stats.active = dosare.filter((d) => d.status !== 'finalizata' && d.status !== 'finalizat').length;
+    stats.completate = dosare.filter((d) => d.status === 'finalizata' || d.status === 'finalizat').length;
+  } else if (rol === 'funcționar_primărie') {
+    const completateCount = dosare.filter(d => (d.Documents || d.documente || d.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala')).length;
+    stats.active = dosare.length - completateCount;
+    stats.completate = completateCount;
+  } else {
+    stats.active = dosare.filter((d) => ['depus','in_analiza','incomplet','programat_comisie'].includes(d.status)).length;
+    stats.aprobate = dosare.filter((d) => d.status === 'aprobat').length;
+    stats.urgente = dosare.filter((d) => d.prioritate === 'urgent').length;
+    stats.incomplet = dosare.filter((d) => d.status === 'incomplet').length;
+  }
 
   const necitite = notificari.filter((n) => !n.citita).length;
-  const dosareRecente = [...dosare].sort((a, b) => new Date(b.creat_la) - new Date(a.creat_la)).slice(0, 8);
+  const dosareRecente = [...dosare].sort((a, b) => new Date(b.creat_la || b.createdAt || 0) - new Date(a.creat_la || a.createdAt || 0)).slice(0, 8);
 
+  const afiseazaData = (dataStr1, dataStr2) => {
+    const d = dataStr1 || dataStr2;
+    if (!d) return '-';
+    const dateObj = new Date(d);
+    return isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('ro-RO');
+  };
+  
   if (loading) return (
     <Layout title="Panou principal">
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
@@ -148,7 +150,6 @@ export default function Dashboard() {
 
   return (
     <Layout title="Panou principal">
-      {/* ── Header salut ── */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontSize: 21, fontWeight: 700, color: 'var(--text-1)' }}>
@@ -160,7 +161,6 @@ export default function Dashboard() {
         </div>
 
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {/* Buton notificări */}
           <div style={{ position: 'relative' }} ref={notifRef}>
             <button className="notif-btn" onClick={() => setShowNotif((v) => !v)}>
               <Ico path="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9|M13.73 21a2 2 0 01-3.46 0" size={20} />
@@ -171,7 +171,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* CTA principal */}
           {rol === 'cetățean' && (
             <Link to="/dosar/nou" className="btn btn-primary">
               <Ico path="M12 5v14|M5 12h14" size={15} />
@@ -181,33 +180,19 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Statistici ── */}
       <div className="stats-grid">
-        <StatCard
-          icon={<Ico path="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />}
-          iconClass="blue" value={stats.total} label="Total dosare"
-        />
-        <StatCard
-          icon={<Ico path="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />}
-          iconClass="teal" value={stats.active} label="Dosare active"
-        />
-        <StatCard
-          icon={<Ico path="M22 11.08V12a10 10 0 11-5.93-9.14|M22 4L12 14.01l-3-3" />}
-          iconClass="green" value={stats.aprobate} label="Aprobate"
-        />
-        <StatCard
-          icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />}
-          iconClass="warn" value={stats.urgente} label="Urgente"
-        />
+        <StatCard icon={<Ico path="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />} iconClass="blue" value={stats.total} label="Total dosare" />
+        <StatCard icon={<Ico path="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />} iconClass="teal" value={stats.active} label="Dosare active" />
+        {/* Schimbăm automat denumirea cardului pentru medici/primărie */}
+        <StatCard icon={<Ico path="M22 11.08V12a10 10 0 11-5.93-9.14|M22 4L12 14.01l-3-3" />} iconClass="green" 
+          value={(rol === 'medic' || rol === 'funcționar_primărie') ? stats.completate : stats.aprobate} 
+          label={(rol === 'medic' || rol === 'funcționar_primărie') ? "Completate" : "Aprobate"} />
+        <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="warn" value={stats.urgente} label="Urgente" />
         {(rol === 'funcționar' || rol === 'manager') && (
-          <StatCard
-            icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />}
-            iconClass="red" value={stats.incomplet} label="Necesită completări"
-          />
+          <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="red" value={stats.incomplet} label="Necesită completări" />
         )}
       </div>
 
-      {/* ── Acțiuni rapide (cetățean) ── */}
       {rol === 'cetățean' && (
         <div className="card" style={{ marginBottom: 24 }}>
           <div className="card-header">
@@ -241,7 +226,6 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Dosare recente ── */}
       <div className="card">
         <div className="card-header">
           <div>
@@ -261,11 +245,6 @@ export default function Dashboard() {
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
             <h3>Niciun dosar {rol === 'cetățean' ? 'depus' : 'alocat'} încă</h3>
-            {rol === 'cetățean' && (
-              <p>
-                <Link to="/dosar/nou" className="text-link">Depuneți primul dosar →</Link>
-              </p>
-            )}
           </div>
         ) : (
           <div className="table-wrap">
@@ -277,54 +256,69 @@ export default function Dashboard() {
                   {rol !== 'cetățean' && <th>{rol === 'medic' ? 'Pacient' : 'Cetățean'}</th>}
                   {rol !== 'medic' && <th>Prioritate</th>}
                   <th>Status</th>
-                  <th>{rol === 'medic' ? 'Data solicitării' : 'Data depunerii'}</th>
+                  <th>{rol === 'medic' || rol === 'funcționar_primărie' ? 'Data solicitării' : 'Data depunerii'}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {dosareRecente.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5, color: 'var(--blue)', fontWeight: 500 }}>
-                        {rol === 'medic' ? (d.dosar?.numar_dosar || `#${d.dosar_id}`) : d.numar_dosar}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 13 }}>{rol === 'medic' ? d.tip : (TIP_LABEL[d.tip] || d.tip)}</td>
-                    
-                    {rol !== 'cetățean' && (
-                      <td style={{ fontSize: 13 }}>
-                        {d.cetatean?.prenume} {d.cetatean?.nume}
-                      </td>
-                    )}
-
-                    {rol !== 'medic' && (
+                {dosareRecente.map((d) => {
+                  const dosarObj = rol === 'medic' ? (d.dosar || d.Dosar || {}) : d;
+                  const cetateanObj = d.cetatean || d.Utilizator || {};
+                  return (
+                    <tr key={d.id}>
                       <td>
-                        {d.prioritate === 'urgent'
-                          ? <span style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600 }}>🔴 Urgent</span>
-                          : <span style={{ background: 'var(--bg)', color: 'var(--text-3)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 500 }}>Normal</span>
-                        }
-                      </td>
-                    )}
-
-                    <td>
-                      {rol === 'medic' ? (
-                        <span className={`badge badge-${d.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>
-                          {d.status === 'finalizat' ? '✅ Finalizat' : '⏳ În așteptare'}
+                        <span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5, color: 'var(--blue)', fontWeight: 500 }}>
+                          {dosarObj.numar_dosar || `#${d.dosar_id || d.id}`}
                         </span>
-                      ) : (
-                        <span className={`badge badge-${d.status}`}>{STATUS_LABEL[d.status]}</span>
+                      </td>
+                      
+                      <td style={{ fontSize: 13 }}>
+                         {TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar'}
+                      </td>
+                      
+                      {rol !== 'cetățean' && (
+                        <td style={{ fontSize: 13 }}>
+                          {cetateanObj?.prenume} {cetateanObj?.nume}
+                        </td>
                       )}
-                    </td>
-                    <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
-                      {new Date(rol === 'medic' ? d.createdAt : d.creat_la).toLocaleDateString('ro-RO')}
-                    </td>
-                    <td>
-                      <Link to={`/dosar/${rol === 'medic' ? d.dosar_id : d.id}`} className="btn btn-ghost btn-sm">
-                        Detalii
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
+
+                      {rol !== 'medic' && (
+                        <td>
+                          {d.prioritate === 'urgent'
+                            ? <span style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600 }}>🔴 Urgent</span>
+                            : <span style={{ background: 'var(--bg)', color: 'var(--text-3)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 500 }}>Normal</span>
+                          }
+                        </td>
+                      )}
+
+                      <td>
+                        {/* --- AFISARE STATUS PERSONALIZAT PENTRU MEDICI/PRIMĂRIE --- */}
+                        {rol === 'medic' ? (
+                          <span className={`badge badge-${d.status === 'finalizata' || d.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>
+                            {d.status === 'finalizata' || d.status === 'finalizat' ? '✅ Completat' : '⏳ În așteptare'}
+                          </span>
+                        ) : rol === 'funcționar_primărie' ? (() => {
+                          const areAncheta = (dosarObj.Documents || dosarObj.documente || dosarObj.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala');
+                          return (
+                            <span className={`badge badge-${areAncheta ? 'aprobat' : 'incomplet'}`}>
+                              {areAncheta ? '✅ Completat' : '⏳ În așteptare'}
+                            </span>
+                          );
+                        })() : (
+                          <span className={`badge badge-${d.status}`}>{STATUS_LABEL[d.status]}</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>
+                        {afiseazaData(d.creat_la, d.createdAt)}
+                      </td>
+                      <td>
+                        <Link to={`/dosar/${rol === 'medic' ? d.dosar_id : d.id}`} className="btn btn-ghost btn-sm">
+                          Detalii
+                        </Link>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>

@@ -86,10 +86,11 @@ export default function Dosare() {
     ? `${solicitari.length} solicitări · ${filtrateSolicitari.length} afișate`
     : `${dosare.length} dosare · ${filtrateDosare.length} afișate`;
 
-  // Helper sigur pentru a extrage data formatată corect
   const afiseazaData = (dataStr1, dataStr2) => {
     const d = dataStr1 || dataStr2;
-    return d ? new Date(d).toLocaleDateString('ro-RO') : '-';
+    if (!d) return '-';
+    const dateObj = new Date(d);
+    return isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('ro-RO');
   };
 
   return (
@@ -162,7 +163,7 @@ export default function Dosare() {
                     <th>Nr. dosar</th>
                     <th>Pacient</th>
                     <th>Tip solicitare</th>
-                    <th>Status</th>
+                    <th>Status Solicitare</th>
                     <th>Data</th>
                     <th></th>
                   </tr>
@@ -179,14 +180,14 @@ export default function Dosare() {
                           <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cetateanObj?.email}</div>
                         </td>
                         <td style={{ fontSize: 13 }}>
-                          <strong>{TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar'}</strong><br/>
-                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{s.observatii || 'Document medical'}</span>
+                          <strong>{TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar Medical'}</strong><br/>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{s.observatii || 'Completare referat'}</span>
                         </td>
-                        <td><span className={`badge badge-${s.status === 'finalizata' ? 'aprobat' : 'incomplet'}`}>{s.status === 'finalizata' ? '✓ Finalizat' : '⏳ În așteptare'}</span></td>
+                        <td><span className={`badge badge-${s.status === 'finalizata' || s.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>{s.status === 'finalizata' || s.status === 'finalizat' ? '✅ Completat' : '⏳ În așteptare'}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(s.creat_la, s.createdAt)}</td>
                         <td>
-                          <Link to={`/dosar/${s.dosar_id}`} className={`btn btn-sm ${s.status === 'finalizata' ? 'btn-ghost' : 'btn-primary'}`}>
-                            {s.status === 'finalizata' ? 'Vezi dosar' : '✍️ Completează'}
+                          <Link to={`/dosar/${s.dosar_id}`} className={`btn btn-sm ${s.status === 'finalizata' || s.status === 'finalizat' ? 'btn-ghost' : 'btn-primary'}`}>
+                            {s.status === 'finalizata' || s.status === 'finalizat' ? 'Vezi dosar' : '✍️ Completează'}
                           </Link>
                         </td>
                       </tr>
@@ -210,15 +211,16 @@ export default function Dosare() {
                     <th>Nr. dosar</th>
                     <th>Cetățean</th>
                     <th>Tip cerere</th>
-                    <th>Status Dosar</th>
-                    <th>Data depunerii</th>
+                    <th>Status Solicitare</th>
+                    <th>Data</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
                   {filtrateDosare.map((d) => {
                     const cetateanObj = d.cetatean || d.Utilizator || {};
-                    const areAncheta = (d.Documents || d.documente || []).some(doc => doc.tip_document === 'ancheta_sociala');
+                    // Acum d.Documents vine corect din backend datorită modificării!
+                    const areAncheta = (d.Documents || d.documente || d.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala');
                     return (
                       <tr key={d.id}>
                         <td><span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5, color: 'var(--blue)', fontWeight: 500 }}>{d.numar_dosar}</span></td>
@@ -226,12 +228,15 @@ export default function Dosare() {
                           <div style={{ fontSize: 13, fontWeight: 500 }}>{cetateanObj?.prenume} {cetateanObj?.nume}</div>
                           <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>CNP: {cetateanObj?.cnp || 'Nespecificat'}</div>
                         </td>
-                        <td style={{ fontSize: 13 }}>{TIP_LABEL[d.tip] || d.tip || '-'}</td>
-                        <td><span className={`badge badge-${d.status}`}>{STATUS_LABEL[d.status] || d.status}</span></td>
+                        <td style={{ fontSize: 13 }}>
+                          <strong>{TIP_LABEL[d.tip] || d.tip || '-'}</strong><br/>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>Anchetă Socială</span>
+                        </td>
+                        <td><span className={`badge badge-${areAncheta ? 'aprobat' : 'incomplet'}`}>{areAncheta ? '✅ Completat' : '⏳ În așteptare'}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(d.creat_la, d.createdAt)}</td>
                         <td>
                           <Link to={`/dosar/${d.id}`} className={`btn btn-sm ${areAncheta ? 'btn-ghost' : 'btn-primary'}`}>
-                            {areAncheta ? 'Vezi dosar' : '✍️ Completează Anchetă'}
+                            {areAncheta ? 'Vezi dosar' : '✍️ Completează'}
                           </Link>
                         </td>
                       </tr>
