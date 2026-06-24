@@ -6,60 +6,65 @@ import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
 const STATUS_OPTIONS = [
-  { value: 'in_analiza',               label: '📋 În analiză' },
-  { value: 'incomplet',                label: '⚠️ Incomplet — necesită completări' },
+  { value: 'in_analiza',               label: '🔍 În analiză' },
+  { value: 'incomplet',                label: '⚠️ Incomplet / necesită completări' },
   { value: 'programat_comisie',        label: '📅 Programat la comisie' },
-  { value: 'aprobat',                  label: '✅ Decizie finală' },
+  { value: 'aprobat',                  label: '✅ Decizie finală (Aprobat)' },
   { value: 'respins',                  label: '❌ Respins' },
-  { value: 'arhivat',                  label: '🗂 Arhivat' },
+  { value: 'arhivat',                  label: '🗄️ Arhivat' },
 ];
 
 const STATUS_LABEL = {
   depus: 'Depus', in_analiza: 'În analiză', incomplet: 'Incomplet',
   in_asteptare_programare: 'În așteptare programare',
-  programat_comisie: 'Programat comisie', aprobat: 'Decizie finală',
+  programat_comisie: 'Programat comisie', aprobat: 'Decizie finală', 
   respins: 'Respins', arhivat: 'Arhivat',
 };
 
 const TIP_LABEL = {
   certificat_handicap: 'Certificat handicap', adoptie: 'Adopție',
-  plasament: 'Plasament familial', alocatie: 'Alocație',
-  evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
+  plasament: 'Plasament familial', alocatie: 'Alocație de stat',
+  indemnizatie: 'Indemnizație creștere copil', evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
 };
 
 const DOC_TIP_LABEL = {
   carte_identitate: 'Carte identitate', certificat_medical: 'Certificat medical',
-  ancheta_sociala: 'Anchetă socială', referat: 'Referat',
+  ancheta_sociala: 'Anchetă socială', referat: 'Referat', adeverinta_scolara: 'Adeverință școlară',
   decizie: 'Decizie (Certificat)', semnatura: 'Semnătură electronică', alte: 'Alt document',
+  ci_parinti: 'Carte Identitate Părinți', cert_nastere: 'Certificat Naștere Copil',
+  extras_cont: 'Extras de Cont', cert_casatorie: 'Certificat Căsătorie / Divorț', adev_munca: 'Adeverință Angajator'
 };
 
 export default function DosarDetaliu() {
   const { id } = useParams();
   const { utilizator } = useAuth();
   const navigate = useNavigate();
-  
+
   const [dosar, setDosar] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [editStatus, setEditStatus] = useState(false);
   const [newStatus, setNewStatus] = useState('');
   const [motiv, setMotiv] = useState('');
   const [savingStatus, setSavingStatus] = useState(false);
   const [uploading, setUploading] = useState(false);
-  
   const fileRef = useRef(null);
+
   const rol = utilizator?.rol;
   const canEditStatus = ['manager', 'administrator'].includes(rol);
-
   const isMedic = rol === 'medic';
   const isFunctionar = rol === 'funcționar';
   const isCetatean = rol === 'cetățean';
   const isFunctionarPrimarie = rol === 'funcționar_primărie';
-  
+  const isReprezentant = rol === 'reprezentant_școală';
+
   const [showDocsBox, setShowDocsBox] = useState(false);
   const [docsSuplimentare, setDocsSuplimentare] = useState('');
-  
+
   const [comisieActiune, setComisieActiune] = useState('');
   const [comisieDate, setComisieDate] = useState({ grad: 'mediu', revizuire: '12', motiv: '' });
+
+  const [actiuneCopilActiva, setActiuneCopilActiva] = useState(false);
 
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -67,12 +72,15 @@ export default function DosarDetaliu() {
   // --- STATE PENTRU MEDIC ---
   const [tipFormMedic, setTipFormMedic] = useState('familie'); 
   const [formMedicFam, setFormMedicFam] = useState({
-    anamneza: '', diagnostic_principal: '', diagnostic_secundar: '', internari: [], deplasabil: 'Este deplasabilă (autonomă/cu sprijin)'
+    anamneza: '', diagnostic_principal: '', diagnostic_secundar: '', internari: [], deplasabil: 'Este deplasabil(ă) (autonom /cu sprijin)'
   });
   const [formMedicSpec, setFormMedicSpec] = useState({
     diagnostic: '', evolutie_boala: 'Staționară', pronostic_viata: 'Bun', pronostic_vindecare: 'Bun',
     tratamente_urmate: '', raspuns_tratament: 'Bun', cooperare: 'Bună'
   });
+
+  // --- STATE PENTRU REPREZENTANT ȘCOALĂ ---
+  const [formScoala, setFormScoala] = useState({ clasa: '', media: '', nr_absente: '' });
 
   // --- STATE PENTRU PRIMARIE (MAMUT) ---
   const [formPrimarie, setFormPrimarie] = useState({
@@ -82,7 +90,7 @@ export default function DosarDetaliu() {
     comunicare_mijloace: 'Fără ajutor', dispozitive_deplasare: 'Niciunul', preparare_hrana: 'Fără ajutor',
     activitati_gospodaresti: 'Fără ajutor', gestionare_venituri: 'Fără ajutor', cumparaturi: 'Fără ajutor',
     administrare_tratament: 'Fără ajutor', utilizare_transport: 'Fără ajutor', timp_liber: 'Fără ajutor',
-    memorie: 'Își aduce aminte total', vaz: 'Completă fără ochelari', comunicare: 'Bună', orientare: 'Fără probleme',
+    memorie: 'Își aduce aminte total', vaz: 'Complet fără ochelari', comunicare: 'Bună', orientare: 'Fără probleme',
     comportament: 'Bun', tip_locuinta: 'Casă', nr_camere: '2', incalzire: 'Centrală', apa_curenta: 'Da', dotari_locuinta: '',
     coabitare: 'Cu familia', coabitant_bolnav: 'Nu', coabitant_adictii: 'Nu', relatie_familie: 'Bună', risc_neglijare: 'Nu',
     risc_abuz: 'Nu', pers_contact: '', are_prieteni: 'Da', relatii_prietenie: 'Permanente', participare_comunitate: 'Da', concluzii: ''
@@ -127,6 +135,30 @@ export default function DosarDetaliu() {
     } catch { toast.error('Eroare la trimiterea solicitării'); } finally { setSavingStatus(false); }
   };
 
+  const handleDecizieDirecta = async (statusNou) => {
+    if (statusNou === 'respins') {
+        const motivRespingere = window.prompt("Introduceți motivul respingerii pentru a fi comunicat cetățeanului:");
+        if (!motivRespingere) return toast.warning('Motivul este obligatoriu pentru respingere!');
+        setSavingStatus(true);
+        try {
+            await api.patch(`/dosare/${id}/status`, { status: statusNou, motiv_respingere: motivRespingere });
+            toast.success('Dosar respins cu succes.');
+            setActiuneCopilActiva(false);
+            fetchDosar();
+        } catch { toast.error('Eroare la respingere.'); }
+        finally { setSavingStatus(false); }
+    } else {
+        setSavingStatus(true);
+        try {
+            await api.patch(`/dosare/${id}/status`, { status: statusNou });
+            toast.success('Dosar aprobat cu succes! S-a acordat dreptul bănesc.');
+            setActiuneCopilActiva(false);
+            fetchDosar();
+        } catch { toast.error('Eroare la aprobare.'); }
+        finally { setSavingStatus(false); }
+    }
+  };
+
   const aprobaDocument = async (docId) => {
     try {
       await api.patch(`/dosare/document/${docId}/aprobare`);
@@ -140,14 +172,13 @@ export default function DosarDetaliu() {
     setSavingStatus(true);
     try {
       await api.post(`/dosare/${id}/finalizare-comisie`, { 
-        actiune: comisieActiune, 
-        grad: comisieDate.grad, 
-        revizuire_luni: comisieDate.revizuire, 
-        motiv: comisieDate.motiv 
-      });
+         actiune: comisieActiune, 
+         grad: comisieDate.grad, 
+         revizuire_luni: comisieDate.revizuire, 
+         motiv: comisieDate.motiv 
+       });
       toast.success(comisieActiune === 'aproba' ? 'Certificat emis cu succes!' : 'Dosar respins!');
-      setComisieActiune(''); 
-      fetchDosar(); 
+      setComisieActiune(''); fetchDosar(); 
     } catch { toast.error('Eroare la procesare'); } finally { setSavingStatus(false); }
   };
 
@@ -167,16 +198,37 @@ export default function DosarDetaliu() {
     const ctx = canvasRef.current.getContext('2d');
     ctx.beginPath(); ctx.moveTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY); setIsDrawing(true);
   };
+
   const draw = (e) => {
     if (!isDrawing) return;
     const ctx = canvasRef.current.getContext('2d');
     ctx.lineTo(e.nativeEvent.offsetX, e.nativeEvent.offsetY); ctx.stroke();
   };
+
   const stopDrawing = () => { setIsDrawing(false); };
+
   const curataSemnatura = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+  };
+
+  // Generare PDF Adeverință Școală
+  const finalizeazaAdeverintaScoala = async () => {
+    const semnaturaBase64 = canvasRef.current.toDataURL('image/png');
+    const blankCanvas = document.createElement('canvas'); blankCanvas.width = canvasRef.current.width; blankCanvas.height = canvasRef.current.height;
+    if (semnaturaBase64 === blankCanvas.toDataURL()) return toast.error('Vă rugăm să semnați documentul!');
+    
+    setSavingStatus(true);
+    try {
+        const payload = { ...formScoala, semnatura_base64: semnaturaBase64 };
+        await api.post(`/dosare/${id}/adeverinta-scolara`, payload);
+        toast.success('Adeverința a fost generată și atașată la dosar!'); fetchDosar();
+    } catch (e) {
+        toast.error(e.response?.data?.eroare || 'Eroare la generarea adeverinței');
+    } finally {
+        setSavingStatus(false);
+    }
   };
 
   const finalizeazaScrisoare = async () => {
@@ -193,17 +245,16 @@ export default function DosarDetaliu() {
         tip_scrisoare: tipFormMedic,
         nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu: domiciliu, telefon: cetatean.telefon, semnatura_base64: semnaturaBase64
       };
-
       if (tipFormMedic === 'familie') payload = { ...payload, ...formMedicFam };
       else payload = { ...payload, ...formMedicSpec };
 
       await api.post(`/dosare/${id}/scrisoare-medicala`, payload);
       toast.success('Documentul medical a fost generat și atașat!'); fetchDosar();
     } catch (e) { 
-      toast.error(e.response?.data?.eroare || 'Eroare la generarea scrisorii medicale'); 
-    } finally { 
-      setSavingStatus(false); 
-    }
+       toast.error(e.response?.data?.eroare || 'Eroare la generarea scrisorii medicale'); 
+     } finally { 
+       setSavingStatus(false); 
+     }
   };
 
   const finalizeazaAnchetaPrimarie = async () => {
@@ -220,28 +271,32 @@ export default function DosarDetaliu() {
         nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu, telefon: cetatean.telefon,
         ...formPrimarie, semnatura_base64: semnaturaBase64
       };
-
       await api.post(`/dosare/${id}/ancheta-sociala`, payload);
       toast.success('Ancheta socială a fost generată și atașată dosarului!'); fetchDosar();
     } catch (e) { 
-      toast.error(e.response?.data?.eroare || 'Eroare la generarea anchetei sociale'); 
-    } finally { 
-      setSavingStatus(false); 
-    }
+       toast.error(e.response?.data?.eroare || 'Eroare la generarea anchetei sociale'); 
+     } finally { 
+       setSavingStatus(false); 
+     }
   };
 
   const handleMergiLaProgramare = async () => {
     const docAtasate = dosar.Documents || dosar.documente || dosar.Documente || [];
     if (docAtasate.length === 0) return toast.warning('Nu există documente atașate la acest dosar!');
     const toateAprobate = docAtasate.every(doc => doc.validat === true || doc.validat === 1);
-    if (!toateAprobate) return toast.warning('⚠️ Vă rugăm să verificați și să APROBAȚI TOATE documentele înainte de a efectua programarea!');
+    if (!toateAprobate) return toast.warning('Vă rugăm să verificați și să APROBAȚI TOATE documentele înainte de a efectua programarea!');
     navigate('/calendar', { state: { dosar_id: dosar.id, tip_dosar: dosar.tip } });
   };
+
+  const isCopilDosar = dosar?.tip === 'alocatie' || dosar?.tip === 'indemnizatie';
 
   const Timeline = ({ status }) => {
     const all = ['depus', 'in_analiza', 'programat_comisie', 'aprobat'];
     const rejected = ['respins', 'incomplet', 'arhivat'].includes(status);
-    const steps = rejected ? ['depus', 'in_analiza', status] : all;
+    
+    const stepsBase = isCopilDosar ? ['depus', 'in_analiza', 'aprobat'] : all;
+    const steps = rejected ? ['depus', 'in_analiza', status] : stepsBase;
+    
     const idx = steps.indexOf(status);
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0, position: 'relative', paddingLeft: 28 }}>
@@ -265,19 +320,21 @@ export default function DosarDetaliu() {
   const functionar = dosar.functionar || null;
   const documenteAtasate = dosar.Documents || dosar.documente || dosar.Documente || [];
   const programareExistenta = dosar.ProgramareComisies?.[0] || dosar.programari?.[0] || dosar.Programari?.[0] || null;
+  
   const esteFinalizat = ['programat_comisie', 'aprobat', 'respins'].includes(dosar.status);
   const toateDocumenteleAprobate = documenteAtasate.length > 0 && documenteAtasate.every(doc => doc.validat === true || doc.validat === 1);
+
+  const solicitareColaborator = (isMedic || isReprezentant) ? (dosar.solicitari || []).find(s => s.medic_id === utilizator.id) : null;
+  const colaboratorACompletat = solicitareColaborator ? (solicitareColaborator.status === 'finalizata' || solicitareColaborator.status === 'finalizat') : false;
   
-  const solicitareMedic = isMedic ? (dosar.solicitari || []).find(s => s.medic_id === utilizator.id) : null;
-  const medicACompletat = solicitareMedic ? (solicitareMedic.status === 'finalizata' || solicitareMedic.status === 'finalizat') : false;
   const docPrimarieCompletat = isFunctionarPrimarie ? documenteAtasate.find(d => d.tip_document === 'ancheta_sociala') : null;
-  
-  const esteFinalizatDeColaborator = isMedic ? medicACompletat : !!docPrimarieCompletat;
+  const esteFinalizatDeColaborator = (isMedic || isReprezentant) ? colaboratorACompletat : !!docPrimarieCompletat;
+
   const comisieTrecuta = programareExistenta && new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora) < new Date();
-  
+
   let documentGenerat = null;
-  if (isMedic && medicACompletat) {
-    documentGenerat = documenteAtasate.slice().reverse().find(d => d.tip_document === 'certificat_medical');
+  if ((isMedic || isReprezentant) && colaboratorACompletat) {
+    documentGenerat = documenteAtasate.slice().reverse().find(d => d.tip_document === (isMedic ? 'certificat_medical' : 'adeverinta_scolara'));
   } else if (isFunctionarPrimarie) {
     documentGenerat = docPrimarieCompletat;
   }
@@ -291,6 +348,7 @@ export default function DosarDetaliu() {
 
       {isFunctionar ? (
         <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+          
           <div className="card" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px' }}>
             <div style={{ fontSize: 14 }}>Dosar: <strong style={{ color: 'var(--blue)' }}>{dosar.numar_dosar}</strong> ({TIP_LABEL[dosar.tip] || dosar.tip})</div>
             <div>Status curent: <span className={`badge badge-${dosar.status}`}>{STATUS_LABEL[dosar.status]}</span></div>
@@ -309,13 +367,13 @@ export default function DosarDetaliu() {
               <div style={{ padding: 16, background: '#e6f4ea', border: '1px solid #34a853', borderRadius: 8, marginBottom: 24 }}>
                 <h4 style={{ color: '#137333', margin: 0 }}>📅 Programare Comisie Fixată</h4>
                 <p style={{ margin: '6px 0 0 0', fontSize: 13.5 }}>
-                  Data: <strong>{new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleDateString('ro-RO')}</strong> · 
+                  Data: <strong>{new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleDateString('ro-RO')}</strong> | 
                   Ora: <strong>{new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleTimeString('ro-RO', {hour: '2-digit', minute:'2-digit'})}</strong>
                 </p>
               </div>
             )}
 
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>📁 Documente Încărcate</h3>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>📂 Documente Încărcate</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 30 }}>
               {documenteAtasate.map((doc) => (
                 <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', border: '1px solid var(--border)', borderRadius: 8, background: doc.tip_document === 'decizie' ? '#f0f9ff' : 'transparent' }}>
@@ -323,14 +381,14 @@ export default function DosarDetaliu() {
                     {doc.tip_document === 'decizie' ? '📄 CERTIFICAT HANDICAP' : (doc.nume_fisier || DOC_TIP_LABEL[doc.tip_document] || doc.tip_document)}
                   </div>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    {doc.cale_fisier && <a href={`http://localhost:5000/${doc.cale_fisier.replace(/\\/g, '/')}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ padding: '5px 10px', fontSize: 12 }}>👁️ Vizualizare</a>}
+                    {doc.cale_fisier && <a href={`http://localhost:5000/${doc.cale_fisier.replace(/\\/g, '/')}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ padding: '5px 10px', fontSize: 12 }}>👁 Vizualizare</a>}
                     
                     {doc.validat ? (
                       <span style={{ fontSize: 12.5, color: '#137333', fontWeight: 600, background: '#e6f4ea', padding: '4px 10px', borderRadius: 20 }}>✓ Aprobat</span>
                     ) : !esteFinalizat && (
                       <>
                         <button className="btn btn-sm" style={{ background: '#e6f4ea', color: '#137333', border: 'none', padding: '5px 10px', fontSize: 12 }} onClick={() => aprobaDocument(doc.id)}>✓ Aprobare</button>
-                        <button className="btn btn-sm" style={{ background: '#fce8e6', color: '#c5221f', border: 'none', padding: '5px 10px', fontSize: 12 }} onClick={() => { setShowDocsBox(true); setDocsSuplimentare(prev => prev ? `${prev}\n- Retrimitere: ${doc.nume_fisier || doc.tip_document}` : `- Retrimitere: ${doc.nume_fisier || doc.tip_document}`); }}>⚠️ Cere retrimitere</button>
+                        <button className="btn btn-sm" style={{ background: '#fce8e6', color: '#c5221f', border: 'none', padding: '5px 10px', fontSize: 12 }} onClick={() => { setShowDocsBox(true); setDocsSuplimentare(prev => prev ? `${prev}\n- Retrimitere: ${doc.nume_fisier || doc.tip_document}` : `- Retrimitere: ${doc.nume_fisier || doc.tip_document}`); }}>✖ Cere retrimitere</button>
                       </>
                     )}
                   </div>
@@ -341,16 +399,48 @@ export default function DosarDetaliu() {
             {!esteFinalizat ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
                 <div style={{ display: 'flex', gap: 12 }}>
-                  <button className="btn btn-secondary" onClick={() => setShowDocsBox(!showDocsBox)} style={{ flex: 1, height: 40 }}>➕ Cere documente suplimentare</button>
-                  <button 
-                    className="btn" 
-                    style={{ background: toateDocumenteleAprobate ? 'indigo' : '#9ca3af', color: '#fff', flex: 1, height: 40, fontWeight: 'bold' }} 
-                    onClick={handleMergiLaProgramare}
-                    disabled={savingStatus}
-                  >
-                    📅 Validare dosar și Programare la Comisie
-                  </button>
+                  <button className="btn btn-secondary" onClick={() => setShowDocsBox(!showDocsBox)} style={{ flex: 1, height: 40 }}>💬 Cere documente suplimentare</button>
+                  
+                  {isCopilDosar ? (
+                      <button 
+                         className="btn" 
+                         style={{ background: toateDocumenteleAprobate ? '#10b981' : '#9ca3af', color: '#fff', flex: 1, height: 40, fontWeight: 'bold' }} 
+                         onClick={() => setActiuneCopilActiva(true)} 
+                         disabled={savingStatus || !toateDocumenteleAprobate}
+                      >
+                         ✔️ Validare și Decizie Finală
+                      </button>
+                  ) : (
+                      <button 
+                         className="btn" 
+                         style={{ background: toateDocumenteleAprobate ? 'indigo' : '#9ca3af', color: '#fff', flex: 1, height: 40, fontWeight: 'bold' }} 
+                         onClick={handleMergiLaProgramare} 
+                         disabled={savingStatus}
+                      >
+                          📅 Validare dosar și Programare la Comisie
+                      </button>
+                  )}
                 </div>
+
+                {/* Box Decizie Directa Alocatii/Indemnizatii */}
+                {isCopilDosar && actiuneCopilActiva && (
+                  <div style={{ padding: 20, background: '#f0fdf4', border: '2px solid #22c55e', borderRadius: 8, marginTop: 16 }}>
+                      <h4 style={{ color: '#166534', margin: '0 0 15px 0', fontSize: 16 }}>🎯 Luare Decizie Finală</h4>
+                      <p style={{ fontSize: 13.5, color: '#15803d', marginBottom: 16 }}>
+                          Pentru dosarele de {TIP_LABEL[dosar.tip]}, decizia vă aparține direct, fără programare la comisie.
+                      </p>
+                      <div style={{ display: 'flex', gap: 10 }}>
+                          <button className="btn btn-success" onClick={() => handleDecizieDirecta('aprobat')} disabled={savingStatus}>
+                              ✅ Aprobă și Acordă
+                          </button>
+                          <button className="btn btn-danger" onClick={() => handleDecizieDirecta('respins')} disabled={savingStatus}>
+                              ❌ Respinge Dosar
+                          </button>
+                          <button className="btn btn-ghost" onClick={() => setActiuneCopilActiva(false)}>Anulează</button>
+                      </div>
+                  </div>
+                )}
+
                 {showDocsBox && (
                   <div style={{ padding: 16, background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: 8 }}>
                     <textarea className="form-textarea" rows="4" value={docsSuplimentare} onChange={(e) => setDocsSuplimentare(e.target.value)} placeholder="Introduceți lista documentelor..." />
@@ -360,15 +450,15 @@ export default function DosarDetaliu() {
               </div>
             ) : dosar.status === 'programat_comisie' && !comisieTrecuta ? (
               <div style={{ padding: 16, background: '#e6f4ea', color: '#137333', textAlign: 'center', borderRadius: 8, fontWeight: 600 }}>
-                ✓ Dosarul a fost validat și programat la comisie! Se așteaptă data programării pentru a lua decizia finală.
+                  ⏳ Dosarul a fost validat și programat la comisie! Se așteaptă data programării pentru a lua decizia finală.
               </div>
             ) : null}
 
-            {/* SECȚIUNEA PENTRU DECIZIA FINALĂ A COMISIEI */}
-            {dosar.status === 'programat_comisie' && comisieTrecuta && (
+            {/* SECȚIUNEA PENTRU DECIZIA FINALĂ A COMISIEI (Doar pentru Handicap) */}
+            {dosar.status === 'programat_comisie' && comisieTrecuta && !isCopilDosar && (
               <div style={{ marginTop: 30, padding: 20, border: '2px solid indigo', borderRadius: 8, background: '#f8f9fa' }}>
                 <h3 style={{ color: 'indigo', marginBottom: 15 }}>⚖️ Decizie Finală Comisie</h3>
-                <p style={{fontSize: 13, color: 'gray', marginBottom: 15}}>Data comisiei a trecut. Vă rugăm să introduceți decizia finală.</p>
+                <p style={{fontSize: 13, color: 'gray', marginBottom: 15}}>Data comisiei a trecut. Vă rugăm introduceți decizia finală.</p>
                 
                 {!comisieActiune ? (
                   <div style={{ display: 'flex', gap: 12 }}>
@@ -410,11 +500,13 @@ export default function DosarDetaliu() {
               </div>
             )}
             
-            {/* Dacă a fost deja luată o decizie, o afișăm clar funcționarului */}
+            {/* Dacă a fost deja luată o decizie */}
             {dosar.status === 'aprobat' && (
               <div style={{ marginTop: 20, padding: 16, background: '#e6f4ea', border: '1px solid #ceead6', borderRadius: 8 }}>
                 <h4 style={{ color: '#137333', margin: '0 0 5px 0', fontSize: 15 }}>✅ Decizie: DOSAR APROBAT</h4>
-                <p style={{ margin: 0, fontSize: 13.5, color: '#137333' }}>Certificatul a fost emis și trimis către cetățean.</p>
+                <p style={{ margin: 0, fontSize: 13.5, color: '#137333' }}>
+                   {isCopilDosar ? 'S-a acordat dreptul financiar și s-a înregistrat decizia.' : 'Certificatul a fost emis și trimis către cetățean.'}
+                </p>
               </div>
             )}
             {dosar.status === 'respins' && (
@@ -423,19 +515,21 @@ export default function DosarDetaliu() {
                  <p style={{ margin: 0, fontSize: 13.5, color: '#c5221f' }}><strong>Motiv:</strong> {dosar.motiv_respingere}</p>
                </div>
             )}
+
           </div>
         </div>
 
-      ) : isMedic || isFunctionarPrimarie ? (
+      ) : isMedic || isFunctionarPrimarie || isReprezentant ? (
+        
         <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="card" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px' }}>
-            <div style={{ fontSize: 14 }}>Cerere Cetățean: <strong style={{ color: 'var(--blue)' }}>{dosar.numar_dosar}</strong></div>
+            <div style={{ fontSize: 14 }}>Cerere Cetățean / Elev: <strong style={{ color: 'var(--blue)' }}>{dosar.numar_dosar}</strong></div>
             <div>
               Status Solicitare: 
               {esteFinalizatDeColaborator ? (
                 <span className={`badge badge-aprobat`} style={{ marginLeft: 8 }}>✓ Completat</span>
               ) : (
-                <span className={`badge badge-incomplet`} style={{ marginLeft: 8 }}>⏳ În așteptare completare</span>
+                <span className={`badge badge-incomplet`} style={{ marginLeft: 8 }}>În așteptare completare</span>
               )}
             </div>
           </div>
@@ -449,7 +543,7 @@ export default function DosarDetaliu() {
               <div style={{ gridColumn: 'span 3' }}>Domiciliu: <strong>{cetatean.judet || ''}, {cetatean.oras || ''}</strong></div>
             </div>
 
-            {/* AICI ESTE VIZUALIZATORUL CARE ÎNLOCUIEȘTE FORMULARUL DUPĂ CE A FOST COMPLETAT */}
+            {/* VIZUALIZATOR DUPĂ COMPLETAT */}
             {esteFinalizatDeColaborator ? (
               <div style={{ padding: '30px 20px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, textAlign: 'center' }}>
                  <div style={{ fontSize: 48, marginBottom: 15 }}>✅</div>
@@ -460,8 +554,8 @@ export default function DosarDetaliu() {
                  {documentGenerat && documentGenerat.cale_fisier ? (
                    <div style={{ marginTop: 20 }}>
                      <iframe 
-                       src={`http://localhost:5000/${documentGenerat.cale_fisier.replace(/\\/g, '/')}`} 
-                       style={{ width: '100%', height: '800px', border: '2px solid #166534', borderRadius: 8 }}
+                        src={`http://localhost:5000/${documentGenerat.cale_fisier.replace(/\\/g, '/')}`} 
+                        style={{ width: '100%', height: '800px', border: '2px solid #166534', borderRadius: 8 }}
                        title="Document PDF Generat"
                      />
                    </div>
@@ -471,12 +565,31 @@ export default function DosarDetaliu() {
               </div>
             ) : (
               <>
+                {/* ----- SECȚIUNE REPREZENTANT SCOALA ----- */}
+                {isReprezentant && (
+                    <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
+                      <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15, color: '#1e293b' }}>📝 Completare Adeverință Școlară</h3>
+                      <div className="form-group">
+                        <label>Clasa / Grupa</label>
+                        <input type="text" className="form-input" placeholder="Ex: a VIII-a B" value={formScoala.clasa} onChange={e => setFormScoala({...formScoala, clasa: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label>Media generală / Calificative</label>
+                        <input type="text" className="form-input" placeholder="Ex: 9.50" value={formScoala.media} onChange={e => setFormScoala({...formScoala, media: e.target.value})} />
+                      </div>
+                      <div className="form-group">
+                        <label>Număr absențe nemotivate</label>
+                        <input type="number" className="form-input" placeholder="Ex: 0" value={formScoala.nr_absente} onChange={e => setFormScoala({...formScoala, nr_absente: e.target.value})} />
+                      </div>
+                    </div>
+                )}
+
                 {/* ----- SECȚIUNE MEDIC ----- */}
                 {isMedic && (
                   <>
                     <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                      <button className={`btn ${tipFormMedic === 'familie' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTipFormMedic('familie')}>📝 Medic de Familie</button>
-                      <button className={`btn ${tipFormMedic === 'specialist' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTipFormMedic('specialist')}>🩺 Medic Specialist</button>
+                      <button className={`btn ${tipFormMedic === 'familie' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTipFormMedic('familie')}>🩺 Medic de Familie</button>
+                      <button className={`btn ${tipFormMedic === 'specialist' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTipFormMedic('specialist')}>🔬 Medic Specialist</button>
                     </div>
 
                     {tipFormMedic === 'familie' ? (
@@ -501,7 +614,7 @@ export default function DosarDetaliu() {
                         <div className="form-group">
                           <label>Deplasabilitate</label>
                           <select className="form-select" value={formMedicFam.deplasabil} onChange={e => setFormMedicFam({...formMedicFam, deplasabil: e.target.value})}>
-                            <option>Este deplasabilă (autonomă/cu sprijin)</option><option>Nu este deplasabilă (nici cu ajutor/scaun rulant)</option>
+                            <option>Este deplasabil(ă) (autonom /cu sprijin)</option><option>Nu este deplasabil(ă) (nici cu ajutor/scaun rulant)</option>
                           </select>
                         </div>
                       </div>
@@ -527,7 +640,7 @@ export default function DosarDetaliu() {
                 {/* ----- SECȚIUNE PRIMĂRIE ----- */}
                 {isFunctionarPrimarie && (
                   <>
-                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20, color: 'var(--text-1)', borderTop: '1px solid var(--border)', paddingTop: 20 }}>🏡 Completare Anchetă Socială Oficială</h3>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20, color: 'var(--text-1)', borderTop: '1px solid var(--border)', paddingTop: 20 }}>📋 Completare Anchetă Socială Oficială</h3>
                     
                     <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
                       <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>I. Informații Generale</h4>
@@ -579,6 +692,7 @@ export default function DosarDetaliu() {
                         <div className="form-group"><label>Apă curentă</label><select className="form-select" value={formPrimarie.apa_curenta} onChange={e => setPF('apa_curenta', e.target.value)}><option>Da</option><option>Nu</option></select></div>
                       </div>
                       <div className="form-group"><label>Alte dotări ale locuinței</label><input type="text" className="form-input" value={formPrimarie.dotari_locuinta} onChange={e => setPF('dotari_locuinta', e.target.value)} /></div>
+                      
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
                         <div className="form-group"><label>Trăiește</label><select className="form-select" value={formPrimarie.coabitare} onChange={e => setPF('coabitare', e.target.value)}><option>Singur</option><option>Cu familia</option></select></div>
                         <div className="form-group"><label>Coabitant bolnav?</label><select className="form-select" value={formPrimarie.coabitant_bolnav} onChange={e => setPF('coabitant_bolnav', e.target.value)}><option>Da</option><option>Nu</option></select></div>
@@ -603,14 +717,14 @@ export default function DosarDetaliu() {
                 )}
 
                 <div className="form-group">
-                  <label>Semnătura ({isMedic ? 'Medicului' : 'Funcționarului'})</label>
+                  <label>Semnătura</label>
                   <div style={{ border: '2px dashed var(--border)', borderRadius: 8, width: 400, background: '#fff', marginTop: 6 }}><canvas ref={canvasRef} width={400} height={150} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} style={{ cursor: 'crosshair' }} /></div>
                   <button type="button" onClick={curataSemnatura} className="text-link" style={{ marginTop: 5, background: 'none', border: 'none', fontSize: 12 }}>Curăță semnătura</button>
                 </div>
 
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, marginTop: 20, textAlign: 'right' }}>
-                  <button className="btn btn-primary" onClick={isMedic ? finalizeazaScrisoare : finalizeazaAnchetaPrimarie} disabled={savingStatus}>
-                    {savingStatus ? 'Se generează...' : `✓ Finalizare și Generare PDF`}
+                  <button className="btn btn-primary" onClick={isMedic ? finalizeazaScrisoare : isReprezentant ? finalizeazaAdeverintaScoala : finalizeazaAnchetaPrimarie} disabled={savingStatus}>
+                    {savingStatus ? 'Se generează...' : `🖨️ Finalizare și Generare PDF`}
                   </button>
                 </div>
               </>
@@ -619,16 +733,16 @@ export default function DosarDetaliu() {
         </div>
 
       ) : (
-        /* ── LAYOUT STANDARD CETĂȚEAN / ADMIN / MANAGER ── */
+
+        /* --- LAYOUT STANDARD CETĂȚEAN / ADMIN / MANAGER --- */
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 20, alignItems: 'start' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-
+            
             {dosar.status === 'aprobat' && (
               <div style={{ padding: 20, background: '#e6f4ea', border: '2px solid #34a853', borderRadius: 8 }}>
                 <h3 style={{ color: '#137333', margin: '0 0 10px 0', fontSize: 16 }}>✅ DOSAR APROBAT</h3>
                 <p style={{ margin: 0, fontSize: 14, color: '#137333', lineHeight: 1.5 }}>
-                  Certificatul dumneavoastră a fost emis cu succes de către comisia de specialitate.<br/>
-                  Îl puteți descărca regăsindu-l mai jos în secțiunea <strong>"Documente atașate"</strong>.
+                  {isCopilDosar ? 'Dosarul dvs. a fost aprobat și vi s-a acordat dreptul social stabilit.' : 'Certificatul dumneavoastră a fost emis cu succes de către comisia de specialitate.\nÎl puteți descărca regăsindu-l mai jos în secțiunea "Documente atașate".'}
                 </p>
               </div>
             )}
@@ -637,7 +751,7 @@ export default function DosarDetaliu() {
               <div style={{ padding: 20, background: '#fce8e6', border: '2px solid #ea4335', borderRadius: 8 }}>
                 <h3 style={{ color: '#c5221f', margin: '0 0 10px 0', fontSize: 16 }}>❌ DOSAR RESPINS</h3>
                 <p style={{ margin: '0 0 10px 0', fontSize: 14, color: '#c5221f' }}>
-                  Ne pare rău, dar dosarul dumneavoastră a fost respins de către comisie.
+                  Ne pare rău, dar dosarul dumneavoastră a fost respins.
                 </p>
                 <div style={{ background: '#fff', padding: 15, borderRadius: 6, border: '1px solid #fad2cf' }}>
                    <span style={{ fontSize: 12, color: '#c5221f', fontWeight: 'bold' }}>MOTIVUL RESPINGERII:</span>
@@ -650,8 +764,8 @@ export default function DosarDetaliu() {
               <div className="card" style={{ border: '2px solid var(--blue)', background: '#f8fafc', padding: 20 }}>
                 <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8, color: 'var(--blue)' }}>📅 Ai o Programare Activă la Comisie</h3>
                 <div style={{ padding: 12, background: '#e6f4ea', color: '#137333', borderRadius: 6, fontWeight: 500 }}>
-                  ✓ Ești programat cu succes în data de: {new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleDateString('ro-RO')} la ora {new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleTimeString('ro-RO', {hour: '2-digit', minute:'2-digit'})}.<br/><br/>
-                  📍 Locația: {programareExistenta.locatie}
+                   Ești programat cu succes în data de: {new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleDateString('ro-RO')} la ora {new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora).toLocaleTimeString('ro-RO', {hour: '2-digit', minute:'2-digit'})}.<br/><br/>
+                   📍 Locația: {programareExistenta.locatie}
                 </div>
               </div>
             )}
@@ -668,6 +782,7 @@ export default function DosarDetaliu() {
                 </div>
                 {canEditStatus && <button className="btn btn-secondary btn-sm" onClick={() => setEditStatus(!editStatus)}>Modifică status</button>}
               </div>
+
               {editStatus && canEditStatus && (
                 <div style={{ marginTop: 20, padding: 16, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)' }}>
                   <div className="form-group">
@@ -702,7 +817,7 @@ export default function DosarDetaliu() {
                 {documenteAtasate.map((doc) => (
                   <div key={doc.id} className="file-item" style={{ alignItems: 'center', background: doc.tip_document === 'decizie' ? '#f0f9ff' : 'transparent', border: doc.tip_document === 'decizie' ? '1px solid #bae6fd' : '1px solid var(--border)' }}>
                     <div style={{ flex: 1, fontWeight: doc.tip_document === 'decizie' ? 'bold' : 'normal', color: doc.tip_document === 'decizie' ? 'var(--blue)' : 'inherit' }}>
-                      {doc.tip_document === 'decizie' ? '📄 CERTIFICAT HANDICAP' : (doc.nume_fisier || DOC_TIP_LABEL[doc.tip_document] || doc.tip_document)}
+                      {doc.tip_document === 'decizie' ? '📄 CERTIFICAT / DECIZIE' : (doc.nume_fisier || DOC_TIP_LABEL[doc.tip_document] || doc.tip_document)}
                     </div>
                     {doc.cale_fisier && <a href={`http://localhost:5000/${doc.cale_fisier.replace(/\\/g, '/')}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm">Deschide PDF</a>}
                   </div>
@@ -716,6 +831,7 @@ export default function DosarDetaliu() {
               <div className="card-title" style={{ marginBottom: 16 }}>Progresul dosarului</div>
               <Timeline status={dosar.status} />
             </div>
+
             {functionar && (
               <div className="card">
                 <div className="card-title">Funcționar alocat</div>
@@ -725,6 +841,7 @@ export default function DosarDetaliu() {
           </div>
         </div>
       )}
+
     </Layout>
   );
 }

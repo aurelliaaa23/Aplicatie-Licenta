@@ -22,8 +22,8 @@ const STATUS_LABEL = {
 
 const TIP_LABEL = {
   certificat_handicap: 'Certificat handicap', adoptie: 'Adopție',
-  plasament: 'Plasament familial', alocatie: 'Alocație',
-  evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
+  plasament: 'Plasament familial', alocatie: 'Alocație de stat',
+  indemnizatie: 'Indemnizație creștere copil', evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
 };
 
 function StatCard({ icon, iconClass, value, label }) {
@@ -92,9 +92,16 @@ export default function Dashboard() {
       if (rol === 'medic') {
         const { data } = await api.get('/dosare/medici/solicitari');
         setDosare(data);
+      } else if (rol === 'reprezentant_școală') {
+        const { data } = await api.get('/dosare/reprezentant/solicitari');
+        setDosare(data);
       } else {
         const { data } = await api.get('/dosare');
-        setDosare(data);
+        if (rol === 'funcționar_primărie') {
+          setDosare(data.filter(d => d.tip === 'certificat_handicap'));
+        } else {
+          setDosare(data);
+        }
       }
     } catch {}
   };
@@ -113,10 +120,9 @@ export default function Dashboard() {
     } catch {}
   };
 
-  // --- LOGICĂ ACTUALIZATĂ PENTRU CARDURI STATISTICI ---
   let stats = { total: dosare.length, active: 0, aprobate: 0, urgente: 0, incomplet: 0, completate: 0 };
-  
-  if (rol === 'medic') {
+
+  if (rol === 'medic' || rol === 'reprezentant_școală') {
     stats.active = dosare.filter((d) => d.status !== 'finalizata' && d.status !== 'finalizat').length;
     stats.completate = dosare.filter((d) => d.status === 'finalizata' || d.status === 'finalizat').length;
   } else if (rol === 'funcționar_primărie') {
@@ -139,7 +145,7 @@ export default function Dashboard() {
     const dateObj = new Date(d);
     return isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('ro-RO');
   };
-  
+
   if (loading) return (
     <Layout title="Panou principal">
       <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}>
@@ -159,7 +165,6 @@ export default function Dashboard() {
             {new Date().toLocaleDateString('ro-RO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ position: 'relative' }} ref={notifRef}>
             <button className="notif-btn" onClick={() => setShowNotif((v) => !v)}>
@@ -170,7 +175,6 @@ export default function Dashboard() {
               <NotifPanel notificari={notificari} onClose={() => setShowNotif(false)} onMarkAll={markAllRead} />
             )}
           </div>
-
           {rol === 'cetățean' && (
             <Link to="/dosar/nou" className="btn btn-primary">
               <Ico path="M12 5v14|M5 12h14" size={15} />
@@ -181,12 +185,11 @@ export default function Dashboard() {
       </div>
 
       <div className="stats-grid">
-        <StatCard icon={<Ico path="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />} iconClass="blue" value={stats.total} label="Total dosare" />
+        <StatCard icon={<Ico path="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />} iconClass="blue" value={stats.total} label={['medic', 'reprezentant_școală'].includes(rol) ? "Total solicitări" : "Total dosare"} />
         <StatCard icon={<Ico path="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />} iconClass="teal" value={stats.active} label="Dosare active" />
-        {/* Schimbăm automat denumirea cardului pentru medici/primărie */}
         <StatCard icon={<Ico path="M22 11.08V12a10 10 0 11-5.93-9.14|M22 4L12 14.01l-3-3" />} iconClass="green" 
-          value={(rol === 'medic' || rol === 'funcționar_primărie') ? stats.completate : stats.aprobate} 
-          label={(rol === 'medic' || rol === 'funcționar_primărie') ? "Completate" : "Aprobate"} />
+          value={(['medic', 'funcționar_primărie', 'reprezentant_școală'].includes(rol)) ? stats.completate : stats.aprobate} 
+          label={(['medic', 'funcționar_primărie', 'reprezentant_școală'].includes(rol)) ? "Completate" : "Aprobate"} />
         <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="warn" value={stats.urgente} label="Urgente" />
         {(rol === 'funcționar' || rol === 'manager') && (
           <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="red" value={stats.incomplet} label="Necesită completări" />
@@ -203,7 +206,7 @@ export default function Dashboard() {
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px,1fr))', gap: 12 }}>
             {[
-              { to: '/dosar/nou', icon: '📋', label: 'Depune dosar nou', color: 'var(--blue-pale)', border: 'var(--blue)' },
+              { to: '/dosar/nou', icon: '📝', label: 'Depune dosar nou', color: 'var(--blue-pale)', border: 'var(--blue)' },
               { to: '/dosare', icon: '📂', label: 'Dosarele mele', color: 'var(--teal-pale)', border: 'var(--teal)' },
               { to: '/programari', icon: '📅', label: 'Programările mele', color: 'var(--warning-bg)', border: 'var(--warning)' },
               { to: '/profil', icon: '👤', label: 'Profilul meu', color: '#f8fafc', border: 'var(--border-dark)' },
@@ -230,13 +233,11 @@ export default function Dashboard() {
         <div className="card-header">
           <div>
             <div className="card-title">
-              {rol === 'cetățean' ? 'Dosarele mele recente' : 'Dosare alocate recent'}
+              {rol === 'cetățean' ? 'Dosarele mele recente' : 'Solicitări alocate recent'}
             </div>
-            <div className="card-subtitle">{dosare.length} dosare în total</div>
+            <div className="card-subtitle">{dosare.length} înregistrări în total</div>
           </div>
-          <Link to="/dosare" className="btn btn-secondary btn-sm">
-            Vezi toate →
-          </Link>
+          <Link to="/dosare" className="btn btn-secondary btn-sm">Vezi toate →</Link>
         </div>
 
         {dosareRecente.length === 0 ? (
@@ -244,7 +245,7 @@ export default function Dashboard() {
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
             </svg>
-            <h3>Niciun dosar {rol === 'cetățean' ? 'depus' : 'alocat'} încă</h3>
+            <h3>Nu aveți nicio înregistrare recentă</h3>
           </div>
         ) : (
           <div className="table-wrap">
@@ -253,17 +254,19 @@ export default function Dashboard() {
                 <tr>
                   <th>Nr. dosar</th>
                   <th>Tip</th>
-                  {rol !== 'cetățean' && <th>{rol === 'medic' ? 'Pacient' : 'Cetățean'}</th>}
-                  {rol !== 'medic' && <th>Prioritate</th>}
+                  {rol !== 'cetățean' && <th>{['medic', 'reprezentant_școală'].includes(rol) ? 'Cetățean / Elev' : 'Cetățean'}</th>}
+                  {!['medic', 'reprezentant_școală'].includes(rol) && <th>Prioritate</th>}
                   <th>Status</th>
-                  <th>{rol === 'medic' || rol === 'funcționar_primărie' ? 'Data solicitării' : 'Data depunerii'}</th>
+                  <th>{['medic', 'funcționar_primărie', 'reprezentant_școală'].includes(rol) ? 'Data solicitării' : 'Data depunerii'}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {dosareRecente.map((d) => {
-                  const dosarObj = rol === 'medic' ? (d.dosar || d.Dosar || {}) : d;
+                  const isExternalCollab = ['medic', 'reprezentant_școală'].includes(rol);
+                  const dosarObj = isExternalCollab ? (d.dosar || d.Dosar || {}) : d;
                   const cetateanObj = d.cetatean || d.Utilizator || {};
+                  
                   return (
                     <tr key={d.id}>
                       <td>
@@ -271,18 +274,15 @@ export default function Dashboard() {
                           {dosarObj.numar_dosar || `#${d.dosar_id || d.id}`}
                         </span>
                       </td>
-                      
                       <td style={{ fontSize: 13 }}>
-                         {TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar'}
+                        {TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar'}
                       </td>
-                      
                       {rol !== 'cetățean' && (
                         <td style={{ fontSize: 13 }}>
                           {cetateanObj?.prenume} {cetateanObj?.nume}
                         </td>
                       )}
-
-                      {rol !== 'medic' && (
+                      {!['medic', 'reprezentant_școală'].includes(rol) && (
                         <td>
                           {d.prioritate === 'urgent'
                             ? <span style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600 }}>🔴 Urgent</span>
@@ -290,18 +290,16 @@ export default function Dashboard() {
                           }
                         </td>
                       )}
-
                       <td>
-                        {/* --- AFISARE STATUS PERSONALIZAT PENTRU MEDICI/PRIMĂRIE --- */}
-                        {rol === 'medic' ? (
+                        {isExternalCollab ? (
                           <span className={`badge badge-${d.status === 'finalizata' || d.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>
-                            {d.status === 'finalizata' || d.status === 'finalizat' ? '✅ Completat' : '⏳ În așteptare'}
+                            {d.status === 'finalizata' || d.status === 'finalizat' ? '✅ Completat' : 'În așteptare'}
                           </span>
                         ) : rol === 'funcționar_primărie' ? (() => {
                           const areAncheta = (dosarObj.Documents || dosarObj.documente || dosarObj.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala');
                           return (
                             <span className={`badge badge-${areAncheta ? 'aprobat' : 'incomplet'}`}>
-                              {areAncheta ? '✅ Completat' : '⏳ În așteptare'}
+                              {areAncheta ? '✅ Completat' : 'În așteptare'}
                             </span>
                           );
                         })() : (
@@ -312,7 +310,7 @@ export default function Dashboard() {
                         {afiseazaData(d.creat_la, d.createdAt)}
                       </td>
                       <td>
-                        <Link to={`/dosar/${rol === 'medic' ? d.dosar_id : d.id}`} className="btn btn-ghost btn-sm">
+                        <Link to={`/dosar/${isExternalCollab ? d.dosar_id : d.id}`} className="btn btn-ghost btn-sm">
                           Detalii
                         </Link>
                       </td>

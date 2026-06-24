@@ -6,7 +6,7 @@ const upload = require('../middleware/upload.middleware');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const htmlToPdf = require('html-pdf-node');
-const { SablonDocument } = require('../models');
+const { SablonDocument, Utilizator } = require('../models');
 
 function eliminaDiacritice(str) {
   if (!str) return '';
@@ -17,17 +17,7 @@ function eliminaDiacritice(str) {
     .replace(/Ă/g, 'A').replace(/Â/g, 'A').replace(/Î/g, 'I');
 }
 
-function calculeazaVarsta(cnp) {
-  if (!cnp || cnp.length !== 13) return '';
-  const s = parseInt(cnp.charAt(0));
-  let an = parseInt(cnp.substring(1, 3));
-  if (s === 1 || s === 2) an += 1900;
-  else if (s === 5 || s === 6) an += 2000;
-  else an += 1900;
-  return new Date().getFullYear() - an;
-}
-
-// ── POST /api/documente/upload (REPARAT CALEA FIȘIERELOR) ───────────────────
+// ── POST /api/documente/upload ──────────────────────────────────────────────
 router.post('/upload', verificaToken, upload.single('fisier'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ eroare: 'Niciun fișier primit' });
@@ -38,7 +28,6 @@ router.post('/upload', verificaToken, upload.single('fisier'), async (req, res) 
       utilizator_id: req.utilizator.id,
       tip_document,
       nume_fisier: req.file.originalname,
-      // Am repus ID-ul utilizatorului pt a găsi exact folderul creat de Multer
       cale_fisier: `uploads/${req.utilizator.id}/${req.file.filename}`, 
       marime_bytes: req.file.size,
     });
@@ -58,13 +47,12 @@ router.post('/upload', verificaToken, upload.single('fisier'), async (req, res) 
   }
 });
 
-// ── POST /api/documente/semnatura (REPARAT GENERARE FIZICĂ + ISTORIC) ───────
+// ── POST /api/documente/semnatura ───────────────────────────────────────────
 router.post('/semnatura', verificaToken, async (req, res) => {
   try {
     const { dosar_id, semnatura_base64 } = req.body;
     if (!semnatura_base64) return res.status(400).json({ eroare: 'Semnătură lipsă' });
 
-    // 1. Salvăm FIZIC fișierul PNG pe server
     const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     
@@ -72,7 +60,6 @@ router.post('/semnatura', verificaToken, async (req, res) => {
     const base64Data = semnatura_base64.replace(/^data:image\/png;base64,/, "");
     fs.writeFileSync(path.join(dir, fileName), base64Data, 'base64');
 
-    // 2. Salvăm referința în Baza de Date
     const doc = await Document.create({
       dosar_id,
       nume_fisier:     'Semnatura_electronica.png',
@@ -83,10 +70,9 @@ router.post('/semnatura', verificaToken, async (req, res) => {
       date_semnatura:  JSON.stringify({ timestamp: new Date(), utilizator_id: req.utilizator.id }),
     });
 
-    // 3. Înregistrăm în istoric
     await IstoricActiuni.create({
       utilizator_id: req.utilizator.id,
-      dosar_id:      dosar_id, // Lipsa acestei linii cauza eroarea mută!
+      dosar_id:      dosar_id,
       actiune:       'Semnătură electronică aplicată',
       detalii:       'Cetățeanul a aplicat semnătura olografă pentru cerere.',
       adresa_ip:     req.ip,
@@ -111,24 +97,9 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
     const numeFisier  = `Cerere_Handicap_${dosar_id}_${Date.now()}.pdf`;
     const caleAbsoluta = path.join(uploadPath, numeFisier);
 
-    const doc    = new PDFDocument({ margin: 50 });
-    const stream = fs.createWriteStream(caleAbsoluta);
-    doc.pipe(stream);
-
-    const numeComplet    = eliminaDiacritice(`${user.nume} ${user.prenume}`);
-    const serieCi        = eliminaDiacritice(date_cerere.serie_ci);
-    const numarCi        = date_cerere.numar_ci;
-    const cnp            = user.cnp;
-    const judet          = eliminaDiacritice(user.judet || '');
-    const oras           = eliminaDiacritice(user.oras  || '');
-    const stradaDetaliata = eliminaDiacritice(date_cerere.strada || '');
-    const telefon        = user.telefon;
-    const email          = eliminaDiacritice(user.email);
-
     let tipT = 'Dosar Nou';
     if (date_cerere.tip_cerere === 'reevaluare_expirat')  tipT = 'Reevaluare pentru dosar expirat';
     if (date_cerere.tip_cerere === 'reevaluare_agravare') tipT = 'Reevaluare pentru agravare stare de sanatate';
-    tipT = eliminaDiacritice(tipT);
 
     const sablon = await SablonDocument.findOne({ where: { nume_sablon: 'Cerere_Evaluare_Handicap' }});
     let html = sablon.continut_html;
@@ -149,21 +120,15 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
     const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, { format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' } });
     fs.writeFileSync(caleAbsoluta, pdfBuffer);
 
-
-      try {
-        await Document.create({
-          dosar_id,
-          utilizator_id:   user.id,
-          nume_fisier:     'Cerere_Evaluare_Handicap.pdf',
-          cale_fisier:     `uploads/${user.id}/${numeFisier}`,
-          tip_document:    'alte',
-          status_document: 'incarcat',
-        });
-        res.json({ mesaj: 'Cerere generată cu succes!' });
-      } catch (dbErr) {
-        console.error('Eroare DB după generare cerere handicap:', dbErr);
-        if (!res.headersSent) res.status(500).json({ eroare: dbErr.message });
-      }
+    await Document.create({
+      dosar_id,
+      utilizator_id:   user.id,
+      nume_fisier:     'Cerere_Evaluare_Handicap.pdf',
+      cale_fisier:     `uploads/${user.id}/${numeFisier}`,
+      tip_document:    'alte',
+      status_document: 'incarcat',
+    });
+    res.json({ mesaj: 'Cerere generată cu succes!' });
 
   } catch (err) {
     console.error('Eroare la generare PDF:', err);
@@ -171,15 +136,83 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
   }
 });
 
-// ── POST /api/documente/genereaza-scrisoare-medicala ─────────────────────────
+// ── POST /api/documente/genereaza-cerere-copil (Ruta MUTATĂ corect) ──────────
+router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
+  try {
+    const { dosar_id, tip_dosar, date_cerere, date_familie, date_indemnizatie, semnatura_base64 } = req.body;
+    
+    // Aducem Dosarul și Cetățeanul
+    const dosar = await Dosar.findByPk(dosar_id);
+    if (!dosar) return res.status(404).json({ eroare: 'Dosarul nu a fost găsit' });
+    const cetatean = await Utilizator.findByPk(dosar.cetatean_id);
+
+    // Alegem șablonul pe baza tipului
+    const numeSablon = tip_dosar === 'alocatie' ? 'Cerere_Alocatie_Stat' : 'Cerere_Indemnizatie';
+    const sablon = await SablonDocument.findOne({ where: { nume_sablon: numeSablon } });
+    if (!sablon) return res.status(404).json({ eroare: 'Șablonul nu există în baza de date' });
+
+    let html = sablon.continut_html;
+
+    // Înlocuim variabilele comune
+    html = html.replace(/{{NUME}}/g, cetatean.nume);
+    html = html.replace(/{{PRENUME}}/g, cetatean.prenume);
+    html = html.replace(/{{CNP}}/g, cetatean.cnp || '-');
+    html = html.replace(/{{JUDET}}/g, cetatean.judet || '-');
+    html = html.replace(/{{ORAS}}/g, cetatean.oras || '-');
+    html = html.replace(/{{STRADA}}/g, date_cerere.strada || '-');
+    html = html.replace(/{{TELEFON}}/g, cetatean.telefon || '-');
+    html = html.replace(/{{EMAIL}}/g, cetatean.email || '-');
+    html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
+    html = html.replace(/{{SEMNATURA_BASE64}}/g, semnatura_base64 || '');
+
+    // Variabile specifice Alocației
+    if (tip_dosar === 'alocatie') {
+      html = html.replace(/{{SERIE_CI}}/g, date_cerere.serie_ci);
+      html = html.replace(/{{NUMAR_CI}}/g, date_cerere.numar_ci);
+    }
+
+    // Variabile specifice Indemnizației
+    if (tip_dosar === 'indemnizatie') {
+      let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
+      let beneficiar = date_indemnizatie.beneficiar === 'titular' ? `${cetatean.nume} ${cetatean.prenume}` : numeSot;
+      
+      html = html.replace(/{{BENEFICIAR}}/g, beneficiar);
+      html = html.replace(/{{NUME_SOT}}/g, numeSot);
+    }
+
+    const uploadDir = path.join(__dirname, '../uploads', String(cetatean.id));
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+
+    const fileName = `Cerere_${tip_dosar === 'alocatie' ? 'Alocatie' : 'Indemnizatie'}_${Date.now()}.pdf`;
+    const filePath = path.join(uploadDir, fileName);
+
+    const options = { format: 'A4', margin: { top: '30px', bottom: '30px', left: '30px', right: '30px' } };
+    const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, options);
+    fs.writeFileSync(filePath, pdfBuffer);
+
+    await Document.create({
+      dosar_id: dosar_id,
+      utilizator_id: cetatean.id,
+      tip_document: 'alte', 
+      nume_fisier: tip_dosar === 'alocatie' ? 'Cerere Acordare Alocație Stat' : 'Cerere Acordare Indemnizație',
+      cale_fisier: `uploads/${cetatean.id}/${fileName}`,
+      validat: true 
+    });
+
+    res.json({ mesaj: 'Cerere PDF generată și atașată cu succes.' });
+  } catch (err) {
+    console.error("Eroare la generarea cererii PDF:", err);
+    res.status(500).json({ eroare: err.message });
+  }
+});
+
 router.post('/genereaza-scrisoare-medicala', verificaToken, async (req, res) => {
-  // (Logica veche a rămas neatinsă, folosim ruta nouă din dosare.routes.js pentru medicii care completează PDF-ul pe dosar)
   res.status(200).send("Folosiți ruta din dosare.routes.js");
 });
 
-// ── POST /api/documente/genereaza-referat-specialist ─────────────────────────
 router.post('/genereaza-referat-specialist', verificaToken, async (req, res) => {
-   // (Logica veche a rămas neatinsă)
    res.status(200).send("Folosiți ruta din dosare.routes.js");
 });
 

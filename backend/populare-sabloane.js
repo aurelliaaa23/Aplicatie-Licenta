@@ -155,6 +155,118 @@ async function populeaza() {
             </div>
           </div>
         `
+      },
+      {
+        nume_sablon: 'Cerere_Alocatie_Stat',
+        tip_dosar: 'alocatie',
+        continut_html: `
+          <div style="font-family: Arial, sans-serif; font-size: 14px; padding: 40px; color: #000; line-height: 1.6;">
+            <h3 style="text-align: center; margin-bottom: 40px;">CERERE<br/>pentru acordarea Alocației de Stat pentru Copii</h3>
+            <p><strong>DOMNULE DIRECTOR,</strong></p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, posesor al actului de identitate seria <strong>{{SERIE_CI}}</strong> nr. <strong>{{NUMAR_CI}}</strong>, cu domiciliul în județul <strong>{{JUDET}}</strong>, localitatea <strong>{{ORAS}}</strong>, str. <strong>{{STRADA}}</strong>, telefon <strong>{{TELEFON}}</strong>, e-mail <strong>{{EMAIL}}</strong>, în calitate de reprezentant legal al copilului, solicit prin prezenta acordarea alocației de stat.
+            </p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Declar pe proprie răspundere că datele declarate în prezenta cerere sunt corecte și complete. Sunt de acord ca datele mele cu caracter personal să fie prelucrate de DGASPC în conformitate cu reglementările GDPR.
+            </p>
+            <br/><br/>
+            <table style="width: 100%; margin-top: 50px;">
+              <tr>
+                <td style="width: 50%; vertical-align: top;"><strong>Data:</strong> {{DATA_CURENTA}}</td>
+                <td style="width: 50%; text-align: right; vertical-align: bottom;">
+                  <strong>Semnătură solicitant:</strong><br/>
+                  <img src="{{SEMNATURA_BASE64}}" width="160" style="border-bottom: 1px dashed #000;" />
+                </td>
+              </tr>
+            </table>
+          </div>
+        `
+      },
+      {
+        nume_sablon: 'Cerere_Indemnizatie',
+        tip_dosar: 'indemnizatie',
+        continut_html: `
+          <div style="font-family: Arial, sans-serif; font-size: 14px; padding: 40px; color: #000; line-height: 1.6;">
+            <h3 style="text-align: center; margin-bottom: 40px;">CERERE<br/>pentru acordarea Indemnizației de Creștere a Copilului (0-2 ani)</h3>
+            <p><strong>DOMNULE DIRECTOR,</strong></p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, domiciliat/ă în <strong>{{JUDET}}, {{ORAS}}, {{STRADA}}</strong>, solicit acordarea indemnizației lunare pentru creșterea copilului.
+            </p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Beneficiarul vizat pentru acordarea acestei indemnizații este: <strong>{{BENEFICIAR}}</strong> (Nume partener: {{NUME_SOT}}).
+            </p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Confirm îndeplinirea condițiilor legale (inclusiv stagiul de cotizare) și anexez documentele justificative.
+            </p>
+            <br/><br/>
+            <table style="width: 100%; margin-top: 50px;">
+              <tr>
+                <td style="width: 50%;"><strong>Data:</strong> {{DATA_CURENTA}}</td>
+                <td style="width: 50%; text-align: right;">
+                  <strong>Semnătură solicitant:</strong><br/>
+                  <img src="{{SEMNATURA_BASE64}}" width="160" style="border-bottom: 1px dashed #000;" />
+                </td>
+              </tr>
+            </table>
+          </div>
+        `
+      },
+      {
+        nume_sablon: 'Adeverinta_Scolara',
+        tip_dosar: 'alocatie',
+        continut_html: `
+          <div style="font-family: Arial, sans-serif; font-size: 13px; padding: 40px; color: #000; line-height: 1.5;">
+            <h2 style="text-align: center; color: #2563eb; border-bottom: 2px solid #2563eb; padding-bottom: 10px;">ADEVERINȚĂ ȘCOLARĂ</h2>
+            <p style="text-align: center; font-weight: bold; margin-bottom: 30px;">UNITATEA DE ÎNVĂȚĂMÂNT: {{INSTITUTIE}}</p>
+            
+            <p style="text-align: justify;">
+              Se adeverește prin prezenta că elevul/copilul aflat în grija domnului/doamnei <strong>{{NUME_PARINTE}} {{PRENUME_PARINTE}}</strong> (CNP: {{CNP_PARINTE}}) este înscris la unitatea noastră de învățământ, având următoarea situație școlară:
+            </p>
+            
+            <table style="width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 30px;">
+              <tr><td style="padding: 10px; border: 1px solid #ccc;"><strong>Clasa / Grupa:</strong></td><td style="padding: 10px; border: 1px solid #ccc;">{{CLASA}}</td></tr>
+              <tr><td style="padding: 10px; border: 1px solid #ccc;"><strong>Media generală / Calificative:</strong></td><td style="padding: 10px; border: 1px solid #ccc;">{{MEDIA}}</td></tr>
+              <tr><td style="padding: 10px; border: 1px solid #ccc;"><strong>Număr absențe nemotivate:</strong></td><td style="padding: 10px; border: 1px solid #ccc;">{{NR_ABSENTE}}</td></tr>
+            </table>
+            
+            <p style="font-size: 11px; color: #555;">Prezenta adeverință a fost eliberată pentru a-i servi la dosarul de alocație DGASPC.</p>
+            
+            <div style="text-align: right; margin-top: 40px;">
+              <p>Data emiterii: <strong>{{DATA_CURENTA}}</strong></p>
+              <p>Reprezentant unitate ({{TIP_REPREZENTANT}}):</p>
+              <img src="{{SEMNATURA_BASE64}}" width="150" />
+            </div>
+          </div>
+        `
+      },
+      {
+        nume_sablon: 'Decizie_Beneficiu_Copil',
+        tip_dosar: 'alocatie',
+        continut_html: `
+          <div style="font-family: Arial, sans-serif; font-size: 14px; padding: 40px; color: #000; line-height: 1.6;">
+            <h2 style="text-align: center; margin-bottom: 5px;">DECIZIE DE SOLUȚIONARE</h2>
+            <h3 style="text-align: center; margin-top: 0; margin-bottom: 40px;">Dosar nr. {{NUMAR_DOSAR}}</h3>
+            
+            <p style="text-align: justify; margin-bottom: 30px;">
+              În urma analizării documentației depuse și a îndeplinirii criteriilor prevăzute de lege, Departamentul pentru Protecția Copilului a dispus următoarea rezoluție:
+            </p>
+            
+            <p><strong>Privind pe solicitantul:</strong> {{NUME}} {{PRENUME}}</p>
+            <p><strong>C.N.P.:</strong> {{CNP}}</p>
+            <p><strong>Tip cerere:</strong> {{TIP_DOSAR_FORMATAT}}</p>
+            
+            <div style="margin-top: 30px; padding: 20px; border: 2px solid {{CULOARE_DECIZIE}}; background-color: {{BG_DECIZIE}};">
+              <h4 style="margin: 0; color: {{CULOARE_DECIZIE}}; text-align: center; font-size: 18px;">REZOLUȚIE: {{STATUS_DECIZIE}}</h4>
+              <p style="text-align: center; margin-top: 10px;">{{MOTIV_DECIZIE}}</p>
+            </div>
+            
+            <div style="text-align: right; margin-top: 60px;">
+              <p style="margin-bottom: 5px;"><strong>Funcționar DGASPC,</strong></p>
+              <p style="font-size: 12px; color: gray;">Semnătură electronică validată în platformă</p>
+              <p style="margin-top: 20px;">Data emiterii: <strong>{{DATA_CURENTA}}</strong></p>
+            </div>
+          </div>
+        `
       }
     ];
 

@@ -7,14 +7,14 @@ import api from '../services/api';
 const STATUS_LABEL = {
   depus: 'Depus', in_analiza: 'În analiză', incomplet: 'Incomplet',
   in_asteptare_programare: 'În așteptare programare',
-  programat_comisie: 'Programat comisie', aprobat: 'Decizie finală',
+  programat_comisie: 'Programat comisie', aprobat: 'Decizie finală', 
   respins: 'Respins', arhivat: 'Arhivat',
 };
 
 const TIP_LABEL = {
   certificat_handicap: 'Certificat handicap', adoptie: 'Adopție',
-  plasament: 'Plasament familial', alocatie: 'Alocație',
-  evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
+  plasament: 'Plasament familial', alocatie: 'Alocație de stat',
+  indemnizatie: 'Indemnizație creștere copil', evaluare_adulti: 'Evaluare adulți', alte_servicii: 'Alte servicii',
 };
 
 export default function Dosare() {
@@ -30,21 +30,30 @@ export default function Dosare() {
 
   const rol            = utilizator?.rol;
   const isMedic        = rol === 'medic';
+  const isReprezentant = rol === 'reprezentant_școală';
   const isPrimarie     = rol === 'funcționar_primărie';
+  const isColaborator  = isMedic || isReprezentant;
 
   useEffect(() => {
-    if (isMedic) {
-      api.get('/dosare/medici/solicitari')
+    if (isColaborator) {
+      const endpoint = isMedic ? '/dosare/medici/solicitari' : '/dosare/reprezentant/solicitari';
+      api.get(endpoint)
         .then(({ data }) => setSolicitari(data))
         .catch(console.error)
         .finally(() => setLoading(false));
     } else {
       api.get('/dosare')
-        .then(({ data }) => setDosare(data))
+        .then(({ data }) => {
+           if (isPrimarie) {
+              setDosare(data.filter(d => d.tip === 'certificat_handicap'));
+           } else {
+              setDosare(data);
+           }
+        })
         .catch(console.error)
         .finally(() => setLoading(false));
     }
-  }, [isMedic]);
+  }, [isColaborator, isMedic, isPrimarie]);
 
   const resetFiltru = () => {
     setCautare(''); setFiltrStatus(''); setFiltrTip(''); setFiltrPrioritate('');
@@ -53,7 +62,7 @@ export default function Dosare() {
   const filtrateDosare = dosare.filter((d) => {
     const text = cautare.toLowerCase();
     const cetateanObj = d.cetatean || d.Utilizator;
-    const matchCautare = !text ||
+    const matchCautare = !text || 
       d.numar_dosar?.toLowerCase().includes(text) ||
       cetateanObj?.nume?.toLowerCase().includes(text) ||
       cetateanObj?.prenume?.toLowerCase().includes(text) ||
@@ -70,21 +79,20 @@ export default function Dosare() {
     const text = cautare.toLowerCase();
     const dosarObj = s.dosar || s.Dosar;
     const cetateanObj = s.cetatean || s.Utilizator;
-    return !text ||
+    return !text || 
       dosarObj?.numar_dosar?.toLowerCase().includes(text) ||
       cetateanObj?.nume?.toLowerCase().includes(text) ||
       cetateanObj?.prenume?.toLowerCase().includes(text);
   });
 
-  const titluPagina = isMedic 
-    ? 'Solicitări Medicale' 
-    : isPrimarie 
-      ? 'Dosare pentru Anchetă Socială' 
-      : 'Dosare DGASPC';
+  const titluPagina = isMedic ? 'Solicitări Medicale' 
+                    : isReprezentant ? 'Solicitări Adeverințe Școlare'
+                    : isPrimarie ? 'Dosare pentru Anchetă Socială' 
+                    : 'Dosare DGASPC';
 
-  const subtitlu = isMedic
-    ? `${solicitari.length} solicitări · ${filtrateSolicitari.length} afișate`
-    : `${dosare.length} dosare · ${filtrateDosare.length} afișate`;
+  const subtitlu = isColaborator
+    ? `${solicitari.length} solicitări | ${filtrateSolicitari.length} afișate`
+    : `${dosare.length} dosare | ${filtrateDosare.length} afișate`;
 
   const afiseazaData = (dataStr1, dataStr2) => {
     const d = dataStr1 || dataStr2;
@@ -104,34 +112,34 @@ export default function Dosare() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <div className="form-group" style={{ flex: 2, marginBottom: 0, minWidth: 180 }}>
             <label>Caută</label>
-            <input type="text" className="form-input"
-              placeholder={isMedic ? 'Nr. dosar, nume pacient...' : 'Nr. dosar, nume cetățean...'}
+            <input type="text" className="form-input" 
+              placeholder={isColaborator ? 'Nr. dosar, nume copil/pacient...' : 'Nr. dosar, nume cetățean...'}
               value={cautare} onChange={(e) => setCautare(e.target.value)} />
           </div>
 
-          {!isMedic && !isPrimarie && (
+          {!isColaborator && !isPrimarie && (
             <>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label>Status</label>
-                <select className="form-select" value={filtrStatus}
+                <select className="form-select" value={filtrStatus} 
                   onChange={(e) => setFiltrStatus(e.target.value)}>
                   <option value="">Toate</option>
-                  {Object.entries(STATUS_LABEL).map(([k, v]) =>
+                  {Object.entries(STATUS_LABEL).map(([k, v]) => 
                     <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label>Tip dosar</label>
-                <select className="form-select" value={filtrTip}
+                <select className="form-select" value={filtrTip} 
                   onChange={(e) => setFiltrTip(e.target.value)}>
                   <option value="">Toate</option>
-                  {Object.entries(TIP_LABEL).map(([k, v]) =>
+                  {Object.entries(TIP_LABEL).map(([k, v]) => 
                     <option key={k} value={k}>{v}</option>)}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label>Prioritate</label>
-                <select className="form-select" value={filtrPrioritate}
+                <select className="form-select" value={filtrPrioritate} 
                   onChange={(e) => setFiltrPrioritate(e.target.value)}>
                   <option value="">Toate</option>
                   <option value="normal">Normal</option>
@@ -140,6 +148,7 @@ export default function Dosare() {
               </div>
             </>
           )}
+
           <button className="btn btn-ghost" onClick={resetFiltru}>✖ Resetează</button>
         </div>
       </div>
@@ -149,11 +158,11 @@ export default function Dosare() {
           <div style={{ padding: 50, textAlign: 'center' }}>
             <div className="loading-spinner" style={{ margin: '0 auto', width: 32, height: 32, borderColor: 'var(--border)', borderTopColor: 'var(--blue)' }} />
           </div>
-        ) : isMedic ? (
+        ) : isColaborator ? (
           filtrateSolicitari.length === 0 ? (
             <div className="empty-state">
-              <h3>Nicio solicitare medicală</h3>
-              <p>Nu aveți solicitări de documente medicale în acest moment.</p>
+              <h3>Nicio solicitare de completat</h3>
+              <p>Nu aveți solicitări active în acest moment.</p>
             </div>
           ) : (
             <div className="table-wrap">
@@ -161,7 +170,7 @@ export default function Dosare() {
                 <thead>
                   <tr>
                     <th>Nr. dosar</th>
-                    <th>Pacient</th>
+                    <th>Cetățean / Copil</th>
                     <th>Tip solicitare</th>
                     <th>Status Solicitare</th>
                     <th>Data</th>
@@ -180,14 +189,14 @@ export default function Dosare() {
                           <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cetateanObj?.email}</div>
                         </td>
                         <td style={{ fontSize: 13 }}>
-                          <strong>{TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar Medical'}</strong><br/>
-                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{s.observatii || 'Completare referat'}</span>
+                          <strong>{TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar'}</strong><br/>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{s.observatii || (isReprezentant ? 'Adeverință școlară' : 'Referat medical')}</span>
                         </td>
-                        <td><span className={`badge badge-${s.status === 'finalizata' || s.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>{s.status === 'finalizata' || s.status === 'finalizat' ? '✅ Completat' : '⏳ În așteptare'}</span></td>
+                        <td><span className={`badge badge-${s.status === 'finalizata' || s.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>{s.status === 'finalizata' || s.status === 'finalizat' ? '✅ Completat' : 'În așteptare'}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(s.creat_la, s.createdAt)}</td>
                         <td>
                           <Link to={`/dosar/${s.dosar_id}`} className={`btn btn-sm ${s.status === 'finalizata' || s.status === 'finalizat' ? 'btn-ghost' : 'btn-primary'}`}>
-                            {s.status === 'finalizata' || s.status === 'finalizat' ? 'Vezi dosar' : '✍️ Completează'}
+                            {s.status === 'finalizata' || s.status === 'finalizat' ? 'Vezi dosar' : '✏️ Completează'}
                           </Link>
                         </td>
                       </tr>
@@ -219,8 +228,8 @@ export default function Dosare() {
                 <tbody>
                   {filtrateDosare.map((d) => {
                     const cetateanObj = d.cetatean || d.Utilizator || {};
-                    // Acum d.Documents vine corect din backend datorită modificării!
                     const areAncheta = (d.Documents || d.documente || d.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala');
+                    
                     return (
                       <tr key={d.id}>
                         <td><span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5, color: 'var(--blue)', fontWeight: 500 }}>{d.numar_dosar}</span></td>
@@ -232,11 +241,11 @@ export default function Dosare() {
                           <strong>{TIP_LABEL[d.tip] || d.tip || '-'}</strong><br/>
                           <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>Anchetă Socială</span>
                         </td>
-                        <td><span className={`badge badge-${areAncheta ? 'aprobat' : 'incomplet'}`}>{areAncheta ? '✅ Completat' : '⏳ În așteptare'}</span></td>
+                        <td><span className={`badge badge-${areAncheta ? 'aprobat' : 'incomplet'}`}>{areAncheta ? '✅ Completat' : 'În așteptare'}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(d.creat_la, d.createdAt)}</td>
                         <td>
                           <Link to={`/dosar/${d.id}`} className={`btn btn-sm ${areAncheta ? 'btn-ghost' : 'btn-primary'}`}>
-                            {areAncheta ? 'Vezi dosar' : '✍️ Completează'}
+                            {areAncheta ? 'Vezi dosar' : '✏️ Completează'}
                           </Link>
                         </td>
                       </tr>
@@ -282,11 +291,11 @@ export default function Dosare() {
                             <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cetateanObj?.oras || cetateanObj?.judet || ''}</div>
                           </td>
                         )}
-                        <td><span className={`badge badge-${d.prioritate === 'urgent' ? 'danger' : 'default'}`}>{d.prioritate === 'urgent' ? '🔴 Urgent' : '🔵 Normal'}</span></td>
+                        <td><span className={`badge badge-${d.prioritate === 'urgent' ? 'danger' : 'default'}`}>{d.prioritate === 'urgent' ? '🔴 Urgent' : '🟢 Normal'}</span></td>
                         <td><span className={`badge badge-${d.status}`}>{STATUS_LABEL[d.status] || d.status}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(d.creat_la, d.createdAt)}</td>
                         <td>
-                          <Link to={`/dosar/${d.id}`} className="btn btn-sm btn-primary">Vezi ➡️</Link>
+                          <Link to={`/dosar/${d.id}`} className="btn btn-sm btn-primary">Vezi →</Link>
                         </td>
                       </tr>
                     );

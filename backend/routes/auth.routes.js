@@ -89,7 +89,7 @@ router.post('/register', async (req, res) => {
     
     if (numeRol === 'funcționar') {
       if (institutie === 'Primărie') numeRol = 'funcționar_primărie';
-      else if (institutie === 'Instituție Învățământ') numeRol = 'funcționar_scoala';
+      else if (institutie === 'Instituție Învățământ') numeRol = 'reprezentant_scoala';
       else if (institutie === 'Poliție') numeRol = 'funcționar_politie';
       else numeRol = 'funcționar'; // Ramane implicit DGASPC
     }
@@ -391,6 +391,54 @@ router.get('/medici', verificaToken, async (req, res) => {
       oras:             m.oras  || null,
       specialitate:     m.profilMedic?.specialitate     || null,
       unitate_medicala: m.profilMedic?.unitate_medicala || null,
+    })));
+  } catch (err) {
+    res.status(500).json({ eroare: err.message });
+  }
+});
+
+// ── GET /api/auth/cauta-cnp/:cnp (NOU PENTRU AUTO-COMPLETARE SOT/SOTIE) ──────
+router.get('/cauta-cnp/:cnp', verificaToken, async (req, res) => {
+  try {
+    const { cnp } = req.params;
+    const utilizator = await Utilizator.findOne({ 
+      where: { cnp: cnp },
+      attributes: ['nume', 'prenume'] 
+    });
+
+    if (!utilizator) {
+      return res.status(404).json({ mesaj: 'Utilizatorul nu a fost găsit.' });
+    }
+
+    res.status(200).json(utilizator);
+  } catch (err) {
+    res.status(500).json({ eroare: err.message });
+  }
+});
+
+// ── GET /api/auth/cadre-didactice (NOU PENTRU FORMULAR ALOCATIE) ─────────────
+// ── GET /api/auth/cadre-didactice ─────────────────────────────
+router.get('/cadre-didactice', verificaToken, async (req, res) => {
+  try {
+    // Căutăm direct utilizatorii care au rol_id = 5
+    const cadre = await Utilizator.findAll({
+      where: { rol_id: 5, activ: true },
+      attributes: ['id', 'nume', 'prenume', 'judet', 'oras'],
+      include: [{ 
+        model: ProfilFunctionar, 
+        as: 'profilFunctionar', // asigură-te că as-ul este la fel ca cel din relațiile tale Sequelize
+        attributes: ['institutie', 'departament']
+      }]
+    });
+
+    res.json(cadre.map(c => ({
+      id: c.id,
+      nume: c.nume,
+      prenume: c.prenume,
+      judet: c.judet,
+      oras: c.oras,
+      institutie: c.profilFunctionar?.institutie || 'Fără Instituție',
+      tip: c.profilFunctionar?.departament || '' // educator, invatator, profesor
     })));
   } catch (err) {
     res.status(500).json({ eroare: err.message });

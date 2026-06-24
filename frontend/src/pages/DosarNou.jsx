@@ -8,10 +8,11 @@ import api from '../services/api';
 
 const TIPURI = [
   { value: 'certificat_handicap', label: '📄 Certificat de handicap', desc: 'Evaluare și eliberare certificat grad de handicap pentru adulți/copii' },
+  { value: 'alocatie',            label: '🏫 Alocație de stat (2-18 ani)', desc: 'Acordare alocație de stat pentru copil' },
+  { value: 'indemnizatie',        label: '🍼 Indemnizație creștere copil (0-2 ani)', desc: 'Acordare indemnizație lunară creștere copil' },
   { value: 'adoptie',             label: '👨‍👩‍👧 Adopție',                  desc: 'Deschidere procedură de adopție națională sau internațională' },
-  { value: 'plasament',           label: '🏠 Plasament familial',          desc: 'Plasament copil în familie substitutivă sau la asistent maternal' },
-  { value: 'alocatie',            label: '💰 Alocație de stat',            desc: 'Alocație pentru copii sau alocație de plasament' },
-  { value: 'alte_servicii',       label: '🤝 Alte servicii sociale',       desc: 'Asistență pentru familii în dificultate sau alte servicii DGASPC' },
+  { value: 'plasament',           label: '🏡 Plasament familial',          desc: 'Plasament copil în familie substitutivă sau la asistent maternal' },
+  { value: 'alte_servicii',       label: '📋 Alte servicii sociale',       desc: 'Asistență pentru familii în dificultate sau alte servicii DGASPC' },
 ];
 
 const JUDETE = [
@@ -25,52 +26,8 @@ const JUDETE = [
   'Vâlcea', 'Vrancea'
 ];
 
-const ORASE_PER_JUDET = {
-  'Alba': ['Alba Iulia', 'Sebeș', 'Aiud', 'Cugir', 'Blaj'],
-  'Arad': ['Arad', 'Pecica', 'Sântana', 'Lipova', 'Ineu'],
-  'Argeș': ['Pitești', 'Mioveni', 'Câmpulung', 'Curtea de Argeș'],
-  'Bacău': ['Bacău', 'Onești', 'Moinești', 'Comănești'],
-  'Bihor': ['Oradea', 'Salonta', 'Marghita', 'Săcueni'],
-  'Bistrița-Năsăud': ['Bistrița', 'Năsăud', 'Beclean'],
-  'Botoșani': ['Botoșani', 'Dorohoi', 'Darabani'],
-  'Brașov': ['Brașov', 'Făgăraș', 'Săcele', 'Zărnești', 'Codlea'],
-  'Brăila': ['Brăila', 'Ianca', 'Însurăței'],
-  'Buzău': ['Buzău', 'Râmnicu Sărat', 'Nehoiu'],
-  'Caraș-Severin': ['Reșița', 'Caransebeș', 'Bocșa'],
-  'Călărași': ['Călărași', 'Oltenița', 'Lehliu-Gară'],
-  'Cluj': ['Cluj-Napoca', 'Turda', 'Dej', 'Câmpia Turzii', 'Gherla'],
-  'Constanța': ['Constanța', 'Mangalia', 'Medgidia', 'Năvodari'],
-  'Covasna': ['Sfântu Gheorghe', 'Târgu Secuiesc', 'Covasna'],
-  'Dâmbovița': ['Târgoviște', 'Moreni', 'Pucioasa', 'Găești'],
-  'Dolj': ['Craiova', 'Băilești', 'Calafat', 'Filiași'],
-  'Galați': ['Galați', 'Tecuci', 'Târgu Bujor'],
-  'Giurgiu': ['Giurgiu', 'Bolintin-Vale'],
-  'Gorj': ['Târgu Jiu', 'Motru', 'Rovinari'],
-  'Harghita': ['Miercurea Ciuc', 'Odorheiu Secuiesc', 'Gheorgheni'],
-  'Hunedoara': ['Deva', 'Hunedoara', 'Petroșani', 'Vulcan'],
-  'Ialomița': ['Slobozia', 'Fetești', 'Urziceni'],
-  'Iași': ['Iași', 'Pașcani', 'Hârlău', 'Târgu Frumos'],
-  'Ilfov': ['Voluntari', 'Pantelimon', 'Buftea', 'Popești-Leordeni', 'Otopeni'],
-  'Maramureș': ['Baia Mare', 'Sighetu Marmației', 'Borșa'],
-  'Mehedinți': ['Drobeta-Turnu Severin', 'Orșova', 'Strehaia'],
-  'Mureș': ['Târgu Mureș', 'Reghin', 'Sighișoara'],
-  'Neamț': ['Piatra Neamț', 'Roman', 'Târgu Neamț'],
-  'Olt': ['Slatina', 'Caracal', 'Balș'],
-  'Prahova': ['Ploiești', 'Câmpina', 'Băicoi', 'Breaza'],
-  'Satu Mare': ['Satu Mare', 'Carei', 'Negrești-Oaș'],
-  'Sălaj': ['Zalău', 'Șimleu Silvaniei', 'Jibou'],
-  'Sibiu': ['Sibiu', 'Mediaș', 'Cisnădie', 'Avrig'],
-  'Suceava': ['Suceava', 'Fălticeni', 'Rădăuți', 'Câmpulung Moldovenesc'],
-  'Teleorman': ['Alexandria', 'Roșiorii de Vede', 'Turnu Măgurele'],
-  'Timiș': ['Timișoara', 'Lugoj', 'Sânnicolau Mare', 'Jimbolia'],
-  'Tulcea': ['Tulcea', 'Babadag', 'Măcin'],
-  'Vaslui': ['Vaslui', 'Bârlad', 'Huși'],
-  'Vâlcea': ['Râmnicu Vâlcea', 'Drăgășani', 'Băbeni'],
-  'Vrancea': ['Focșani', 'Adjud', 'Mărășești']
-};
-
 const SPECIALITATI_MEDICALE = [
-  'Cardiologie', 'Neurologie', 'Ortopedie', 'Psihiatrie', 'Oftalmologie', 
+  'Medicină de familie', 'Cardiologie', 'Neurologie', 'Ortopedie', 'Psihiatrie', 'Oftalmologie', 
   'ORL', 'Oncologie', 'Medicină Internă', 'Chirurgie', 'Pneumologie', 'Diabet și Nutriție'
 ];
 
@@ -80,30 +37,47 @@ export default function DosarNou() {
   const [step, setStep]           = useState(0);
   const [loading, setLoading]     = useState(false);
   const [dosarId, setDosarId]     = useState(null);
-
+  
   const [tip, setTip]             = useState('');
   const [prioritate, setPrioritate] = useState('normal');
   const [descriere, setDescriere] = useState('');
   const [fisiere, setFisiere]     = useState([]);
-
+  
   const [mediciDB, setMediciDB] = useState([]);
+  const [cadreDidactice, setCadreDidactice] = useState([]);
 
   const [dateCerere, setDateCerere] = useState({
     serie_ci: '', numar_ci: '',
     strada: '', tip_cerere: 'dosar_nou', acord_corectitudine: false, acord_gdpr: false,
   });
 
+  const [dateFamilie, setDateFamilie] = useState({
+    cetateanUe: false, tipFamilie: 'monoparentala', cnpSot: '', numeSot: ''
+  });
+
+  const [dateAlocatie, setDateAlocatie] = useState({
+    acelasiJudet: true, judet: '', tipCadru: '', cadruDidacticId: ''
+  });
+
+  const [dateIndemnizatie, setDateIndemnizatie] = useState({ beneficiar: 'titular' });
+
   const [docIdentitate, setDocIdentitate] = useState(null);
   const [docVenit, setDocVenit] = useState(null);
-  const [medicFam, setMedicFam] = useState({
-    acelasiJudet: true, judet: '', medic: ''
-  });
+  const [docCIParinti, setDocCIParinti] = useState(null);
+  const [docCertNastere, setDocCertNastere] = useState(null);
+  const [docExtrasCont, setDocExtrasCont] = useState(null);
+  const [docCertCasatorie, setDocCertCasatorie] = useState(null);
+  const [docAdevMunca, setDocAdevMunca] = useState(null);
+
+  const [medicFam, setMedicFam] = useState({ acelasiJudet: true, judet: '', medic: '' });
   const [referate, setReferate] = useState([]);
 
   const isHandicap = tip === 'certificat_handicap';
-  const activeSteps = isHandicap
-    ? ['Tip dosar', 'Formular Cerere', 'Informații', 'Documente', 'Semnătură', 'Confirmare']
-    : ['Tip dosar', 'Informații', 'Documente', 'Semnătură', 'Confirmare'];
+  const isCopil = tip === 'alocatie' || tip === 'indemnizatie';
+
+  let activeSteps = ['Tip dosar', 'Informații', 'Documente', 'Semnătură', 'Confirmare'];
+  if (isHandicap) activeSteps = ['Tip dosar', 'Formular Cerere', 'Informații', 'Documente', 'Semnătură', 'Confirmare'];
+  if (isCopil) activeSteps = ['Tip dosar', 'Date Identificare & Familie', tip === 'alocatie' ? 'Detalii Școală' : 'Detalii Indemnizație', 'Documente', 'Semnătură', 'Confirmare'];
 
   const canvasRef    = useRef(null);
   const signPadRef   = useRef(null);
@@ -115,27 +89,49 @@ export default function DosarNou() {
          .then(res => setMediciDB(res.data))
          .catch(err => console.error("Eroare la aducerea medicilor:", err));
     }
-  }, [isHandicap]);
+    if (isCopil && tip === 'alocatie') {
+      api.get('/auth/cadre-didactice')
+         .then(res => setCadreDidactice(res.data))
+         .catch(err => console.error("Eroare cadre didactice:", err));
+    }
+  }, [isHandicap, isCopil, tip]);
 
   const judetMedicFam = medicFam.acelasiJudet ? utilizator?.judet : medicFam.judet;
-  
   const mediciFamilie = judetMedicFam
-    ? mediciDB.filter(m => {
-        const specDB = (m.specialitate || '').toLowerCase();
-        const judetDB = m.judet || '';
-        return specDB.includes('familie') && judetDB === judetMedicFam;
-      })
+    ? mediciDB.filter(m => (m.specialitate || '').toLowerCase().includes('familie') && (m.judet || '') === judetMedicFam)
     : [];
 
   const getMediciSpecialisti = (judet, spec) => {
     if (!judet || !spec) return [];
-    
     return mediciDB.filter(m => {
-      const specDB = m.specialitate || '';
-      const judetDB = m.judet || '';
       const formatStr = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-      return formatStr(specDB) === formatStr(spec) && formatStr(judetDB) === formatStr(judet);
+      return formatStr(m.specialitate || '') === formatStr(spec) && formatStr(m.judet || '') === formatStr(judet);
     });
+  };
+
+  const judetScoala = dateAlocatie.acelasiJudet ? utilizator?.judet : dateAlocatie.judet;
+  
+  const cadreFiltrate = cadreDidactice.filter(cd => {
+    const formatStr = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const matchJudet = !judetScoala || formatStr(cd.judet || '') === formatStr(judetScoala);
+    const matchTip = !dateAlocatie.tipCadru || formatStr(cd.tip || '').includes(formatStr(dateAlocatie.tipCadru));
+    return matchJudet && matchTip;
+  });
+
+  const handleCnpSotChange = async (e) => {
+    const val = e.target.value.replace(/\D/g, '');
+    setDateFamilie({ ...dateFamilie, cnpSot: val, numeSot: '' });
+    if (val.length === 13) {
+      try {
+        const { data } = await api.get(`/auth/cauta-cnp/${val}`);
+        if (data && data.nume) {
+            setDateFamilie(prev => ({ ...prev, numeSot: `${data.prenume} ${data.nume}` }));
+            toast.success('Soțul/Soția a fost găsit(ă) în baza de date!');
+        }
+      } catch (err) {
+        setDateFamilie(prev => ({ ...prev, numeSot: 'Nu a fost găsit în platformă (va depune fizic o copie CI)' }));
+      }
+    }
   };
 
   useEffect(() => {
@@ -159,34 +155,26 @@ export default function DosarNou() {
     if (signPadRef.current) signPadRef.current.clear();
   };
 
-  const clearSignature = () => {
-    signPadRef.current?.clear();
-  };
+  const clearSignature = () => signPadRef.current?.clear();
 
-  const adaugaReferat = () => {
-    setReferate([...referate, { id: Date.now(), specialitate: '', judet: '', medic: '' }]);
-  };
-
-  const updateReferat = (id, key, value) => {
-    setReferate(referate.map(r => r.id === id ? { ...r, [key]: value } : r));
-  };
-
-  const stergeReferat = (id) => {
-    setReferate(referate.filter(r => r.id !== id));
-  };
+  const adaugaReferat = () => setReferate([...referate, { id: Date.now(), specialitate: '', judet: '', medic: '' }]);
+  const updateReferat = (id, key, value) => setReferate(referate.map(r => r.id === id ? { ...r, [key]: value } : r));
+  const stergeReferat = (id) => setReferate(referate.filter(r => r.id !== id));
 
   const nextStep = async () => {
     if (step === 0) {
       if (!tip) return toast.warning('Selectați tipul dosarului');
-      setStep(isHandicap ? 1 : 2);
+      setStep(isHandicap || isCopil ? 1 : 2);
     } 
     else if (step === 1) {
-      if (!dateCerere.serie_ci || !dateCerere.numar_ci || !dateCerere.strada) {
-        return toast.warning('Vă rugăm completați seria CI, numărul CI și strada.');
+      if (!dateCerere.serie_ci || !dateCerere.numar_ci || !dateCerere.strada) return toast.warning('Vă rugăm completați seria CI, numărul CI și strada.');
+      if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) return toast.warning('Bifați ambele acorduri generale (corectitudine și GDPR).');
+      
+      if (isCopil) {
+        if (!dateFamilie.cetateanUe) return toast.warning('Bifați confirmarea că sunteți cetățean UE.');
+        if (dateFamilie.tipFamilie === 'integrala' && dateFamilie.cnpSot.length !== 13) return toast.warning('CNP-ul soțului trebuie să fie valid și complet (13 cifre).');
       }
-      if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) {
-        return toast.warning('Bifați ambele acorduri la finalul formularului pentru a continua.');
-      }
+
       try {
         await api.patch('/auth/profil', {
           adresa_completa: `${dateCerere.strada}, ${utilizator?.oras || ''}, ${utilizator?.judet || ''}`,
@@ -196,8 +184,17 @@ export default function DosarNou() {
       setStep(2);
     } 
     else if (step === 2) {
-      if (!descriere.trim()) return toast.warning('Descrieți situația dvs.');
-      setStep(3);
+      if (isCopil && tip === 'alocatie') {
+          // Aici a fost corectată validarea - se verifică doar câmpurile rămase
+          if (!dateAlocatie.acelasiJudet && !dateAlocatie.judet) return toast.warning('Selectați județul instituției!');
+          if (!dateAlocatie.tipCadru || !dateAlocatie.cadruDidacticId) return toast.warning('Completați toate informațiile despre școală!');
+          setStep(3);
+      } else if (isCopil && tip === 'indemnizatie') {
+          setStep(3);
+      } else {
+          if (!descriere.trim()) return toast.warning('Descrieți situația dvs.');
+          setStep(3);
+      }
     } 
     else if (step === 3) {
       setStep(4);
@@ -205,25 +202,25 @@ export default function DosarNou() {
   };
 
   const prevStep = () => {
-    if (step === 2) setStep(isHandicap ? 1 : 0);
+    if (step === 2) setStep(isHandicap || isCopil ? 1 : 0);
     else setStep((s) => s - 1);
   };
 
   let uiStepIndex = step;
-  if (!isHandicap && step >= 2) uiStepIndex = step - 1;
+  if (!isHandicap && !isCopil && step >= 2) uiStepIndex = step - 1;
 
   const BoxIncarcare = ({ label, file, setFile }) => (
     <div style={{ marginBottom: 16 }}>
       <label style={{ display: 'block', marginBottom: 6, fontSize: 13, fontWeight: 600, color: 'var(--text-1)' }}>{label}</label>
       {file ? (
          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--success-bg)', border: '1px solid #bbf7d0', borderRadius: 6 }}>
-           <span style={{ fontSize: 18 }}>📄</span>
+           <span style={{ fontSize: 18 }}>✅</span>
            <span style={{ flex: 1, fontSize: 13, color: 'var(--success)', fontWeight: 500 }}>{file.name}</span>
            <button type="button" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: 'var(--danger)' }} onClick={() => setFile(null)}>✖</button>
          </div>
       ) : (
          <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg)', border: '1px dashed var(--border)', borderRadius: 6, cursor: 'pointer', transition: '0.2s' }}>
-           <span style={{ fontSize: 18 }}>📂</span>
+           <span style={{ fontSize: 18 }}>📁</span>
            <span style={{ flex: 1, fontSize: 13, color: 'var(--text-2)' }}>Click pentru a alege un fișier (PDF/JPG)</span>
            <input type="file" style={{ display: 'none' }} accept=".pdf,.jpg,.jpeg,.png" onChange={(e) => setFile(e.target.files[0])} />
          </label>
@@ -234,61 +231,67 @@ export default function DosarNou() {
   const uploadSpecificFile = async (file, dosar_id, tip_doc) => {
     if (!file) return;
     const fd = new FormData();
-    fd.append('fisier', file);
-    fd.append('dosar_id', dosar_id);
-    fd.append('tip_document', tip_doc);
+    fd.append('fisier', file); fd.append('dosar_id', dosar_id); fd.append('tip_document', tip_doc);
     await api.post('/documente/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' }});
   };
 
   const creeazaDosar = async () => {
     setLoading(true);
     try {
-      const { data: dosar } = await api.post('/dosare', { tip, descriere, prioritate });
+      const { data: dosar } = await api.post('/dosare', { tip, descriere: isCopil ? 'Dosar pentru acordare beneficiu social copii' : descriere, prioritate });
       setDosarId(dosar.id);
-
+      
       if (isHandicap) {
         await uploadSpecificFile(docIdentitate, dosar.id, 'carte_identitate');
         await uploadSpecificFile(docVenit, dosar.id, 'alte');
+      } else if (isCopil) {
+        await uploadSpecificFile(docCIParinti, dosar.id, 'ci_parinti');
+        await uploadSpecificFile(docCertNastere, dosar.id, 'cert_nastere');
+        await uploadSpecificFile(docExtrasCont, dosar.id, 'extras_cont');
+        if (dateFamilie.tipFamilie === 'integrala' && docCertCasatorie) await uploadSpecificFile(docCertCasatorie, dosar.id, 'cert_casatorie');
+        if (tip === 'indemnizatie' && docAdevMunca) await uploadSpecificFile(docAdevMunca, dosar.id, 'adev_munca');
       } else {
-        for (let i = 0; i < fisiere.length; i++) {
-          await uploadSpecificFile(fisiere[i], dosar.id, 'alte');
-        }
+        for (let i = 0; i < fisiere.length; i++) await uploadSpecificFile(fisiere[i], dosar.id, 'alte');
       }
 
       let sigData = null;
       if (signPadRef.current && !signPadRef.current.isEmpty()) {
         sigData = signPadRef.current.toDataURL('image/png');
-        // AICI ESTE PROTECȚIA: Dacă ruta de semnătură lipsește, codul nu se mai blochează!
-        try {
-          await api.post('/documente/semnatura', { dosar_id: dosar.id, semnatura_base64: sigData });
-        } catch (e) {
-          console.warn("Ruta de salvare semnătură lipsește. Trecem mai departe.", e);
-        }
+        try { await api.post('/documente/semnatura', { dosar_id: dosar.id, semnatura_base64: sigData }); } catch (e) { console.warn("Eroare la semnatură.", e); }
       }
 
       if (isHandicap) {
         try {
-          await api.post('/documente/genereaza-cerere-handicap', {
-            dosar_id: dosar.id, date_cerere: dateCerere, semnatura_base64: sigData
-          });
-          await new Promise(resolve => setTimeout(resolve, 500)); 
-        } catch (err) { console.warn("Eroare la generarea cererii PDF:", err); }
-
+          await api.post('/documente/genereaza-cerere-handicap', { dosar_id: dosar.id, date_cerere: dateCerere, semnatura_base64: sigData });
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) {}
+        
         const mediciDeNotificat = [];
-        if (medicFam.medic) {
-          mediciDeNotificat.push({ id: medicFam.medic, nume: medicFam.medic, tip: 'Medic de Familie' });
-        }
-        referate.forEach(r => {
-          if (r.medic) mediciDeNotificat.push({ id: r.medic, nume: r.medic, tip: `Medic Specialist (${r.specialitate})` });
-        });
-
+        if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, nume: medicFam.medic, tip: 'Medic de Familie' });
+        referate.forEach(r => { if (r.medic) mediciDeNotificat.push({ id: r.medic, nume: r.medic, tip: `Medic Specialist` }); });
         if (mediciDeNotificat.length > 0) {
-          try {
-            await api.post(`/dosare/${dosar.id}/notifica-medici`, { medici: mediciDeNotificat });
-          } catch (err) { console.error("Eroare la notificarea medicilor:", err); }
+          try { await api.post(`/dosare/${dosar.id}/notifica-medici`, { medici: mediciDeNotificat }); } catch (err) {}
         }
       }
-      
+
+      else if (isCopil) {
+        try {
+          await api.post('/documente/genereaza-cerere-copil', { 
+            dosar_id: dosar.id, 
+            tip_dosar: tip,
+            date_cerere: dateCerere, 
+            date_familie: dateFamilie,
+            date_indemnizatie: dateIndemnizatie,
+            semnatura_base64: sigData 
+          });
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } catch (err) { console.error("Eroare la generarea cererii", err); }
+      }
+
+      if (isCopil && tip === 'alocatie' && dateAlocatie.cadruDidacticId) {
+          try { await api.post(`/dosare/${dosar.id}/notifica-reprezentant`, { reprezentant_id: dateAlocatie.cadruDidacticId }); } catch (e) { console.warn(e); }
+      }
+
       setStep(5);
       toast.success('Dosar depus cu succes!');
     } catch (err) {
@@ -305,7 +308,7 @@ export default function DosarNou() {
           <h2>Depunere dosar nou</h2>
           <p>Completați formularul pas cu pas. Datele dvs. sunt securizate și confidențiale.</p>
         </div>
-
+        
         <div className="stepper" style={{ marginBottom: 28 }}>
           {activeSteps.map((label, i) => (
             <div key={i} className={`step ${i < uiStepIndex ? 'done' : i === uiStepIndex ? 'active' : ''}`}>
@@ -316,6 +319,7 @@ export default function DosarNou() {
         </div>
 
         <div className="card">
+          
           {/* PASUL 0 */}
           {step === 0 && (
             <>
@@ -341,58 +345,51 @@ export default function DosarNou() {
                 ))}
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-                <button className="btn btn-primary" onClick={nextStep}>Continuare ➡️</button>
+                <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
               </div>
             </>
           )}
 
-          {/* PASUL 1 */}
-          {step === 1 && isHandicap && (
+          {/* PASUL 1: Formular Comun */}
+          {step === 1 && (isHandicap || isCopil) && (
             <>
               <div className="card-header">
                 <div>
-                  <div className="card-title">Date personale și Adresă</div>
-                  <div className="card-subtitle">Informațiile de mai jos vor fi folosite pentru generarea cererii oficiale.</div>
+                  <div className="card-title">Date personale și Identificare</div>
+                  <div className="card-subtitle">Informațiile de mai jos vor fi folosite pentru generarea cererii.</div>
                 </div>
               </div>
+              
               <div className="form-row">
                 <div className="form-group">
                   <label>Nume și Prenume (precompletat)</label>
-                  <input type="text" className="form-input" 
-                     value={`${utilizator?.nume || ''} ${utilizator?.prenume || ''}`} 
-                     disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
+                  <input type="text" className="form-input" value={`${utilizator?.nume || ''} ${utilizator?.prenume || ''}`} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
                 </div>
                 <div className="form-group">
                   <label>CNP (precompletat)</label>
-                  <input type="text" className="form-input" 
-                     value={utilizator?.cnp || ''} 
-                     disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
+                  <input type="text" className="form-input" value={utilizator?.cnp || ''} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
                 </div>
               </div>
+              
               <div className="form-row">
                 <div className="form-group">
                   <label>Email (precompletat)</label>
-                  <input type="email" className="form-input" 
-                     value={utilizator?.email || ''} 
-                     disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
+                  <input type="email" className="form-input" value={utilizator?.email || ''} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
                 </div>
                 <div className="form-group">
                   <label>Telefon (precompletat)</label>
-                  <input type="text" className="form-input" 
-                     value={utilizator?.telefon || ''} 
-                     disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
+                  <input type="text" className="form-input" value={utilizator?.telefon || ''} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
                 </div>
               </div>
+
               <div className="form-row">
                 <div className="form-group">
                   <label>Serie CI *</label>
-                  <input type="text" className="form-input" placeholder="ex: XT" 
-                     value={dateCerere.serie_ci} onChange={(e) => setDateCerere({...dateCerere, serie_ci: e.target.value.toUpperCase()})} maxLength={2} />
+                  <input type="text" className="form-input" placeholder="ex: XT" value={dateCerere.serie_ci} onChange={(e) => setDateCerere({...dateCerere, serie_ci: e.target.value.toUpperCase()})} maxLength={2} />
                 </div>
                 <div className="form-group">
                   <label>Număr CI *</label>
-                  <input type="text" className="form-input" placeholder="ex: 123456" 
-                     value={dateCerere.numar_ci} onChange={(e) => setDateCerere({...dateCerere, numar_ci: e.target.value.replace(/\D/g, '')})} maxLength={6} />
+                  <input type="text" className="form-input" placeholder="ex: 123456" value={dateCerere.numar_ci} onChange={(e) => setDateCerere({...dateCerere, numar_ci: e.target.value.replace(/\D/g, '')})} maxLength={6} />
                 </div>
               </div>
 
@@ -401,42 +398,54 @@ export default function DosarNou() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Județ / Sector</label>
-                    <input 
-                      type="text" className="form-input"
-                      value={utilizator?.judet || ''} disabled 
-                      style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
-                    />
+                    <input type="text" className="form-input" value={utilizator?.judet || ''} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
                   </div>
                   <div className="form-group">
                     <label>Oraș / Comună</label>
-                    <input 
-                      type="text" className="form-input"
-                      value={utilizator?.oras || ''} disabled 
-                      style={{ background: 'var(--bg)', color: 'var(--text-2)' }}
-                    />
+                    <input type="text" className="form-input" value={utilizator?.oras || ''} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
                   </div>
                 </div>
-                {(!utilizator?.judet || !utilizator?.oras) && (
-                  <p style={{ fontSize: 12.5, color: 'var(--danger)', marginBottom: 12 }}>
-                    ⚠️ Județul și orașul nu sunt completate în profilul dvs.{' '}
-                    <a href="/profil" style={{ color: 'var(--blue)' }}>Actualizați profilul</a> înainte de a continua.
-                  </p>
-                )}
                 <div className="form-group" style={{ marginBottom: 0 }}>
                   <label>Detalii adresă (Stradă, număr, bloc, apartament) *</label>
-                  <input type="text" className="form-input" placeholder="ex: Bd. Unirii, nr. 10, bl. A, ap. 5" 
-                     value={dateCerere.strada} onChange={(e) => setDateCerere({...dateCerere, strada: e.target.value})} />
+                  <input type="text" className="form-input" placeholder="ex: Bd. Unirii, nr. 10, bl. A, ap. 5" value={dateCerere.strada} onChange={(e) => setDateCerere({...dateCerere, strada: e.target.value})} />
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Acest dosar reprezintă o cerere pentru: *</label>
-                <select className="form-input" value={dateCerere.tip_cerere} onChange={(e) => setDateCerere({...dateCerere, tip_cerere: e.target.value})}>
-                  <option value="dosar_nou">Dosar Nou</option>
-                  <option value="reevaluare_expirat">Reevaluare pentru dosar expirat</option>
-                  <option value="reevaluare_agravare">Reevaluare pentru agravare stare de sănătate</option>
-                </select>
-              </div>
+              {isHandicap && (
+                  <div className="form-group">
+                    <label>Acest dosar reprezintă o cerere pentru: *</label>
+                    <select className="form-input" value={dateCerere.tip_cerere} onChange={(e) => setDateCerere({...dateCerere, tip_cerere: e.target.value})}>
+                      <option value="dosar_nou">Dosar Nou</option>
+                      <option value="reevaluare_expirat">Reevaluare pentru dosar expirat</option>
+                      <option value="reevaluare_agravare">Reevaluare pentru agravare stare de sănătate</option>
+                    </select>
+                  </div>
+              )}
+
+              {isCopil && (
+                  <div style={{ background: 'var(--info-bg)', padding: 16, border: '1px solid #bae6fd', borderRadius: 8, marginTop: 24, marginBottom: 24 }}>
+                      <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Informații Familie</h4>
+                      <div className="form-group">
+                          <label>Tipul Familiei dvs. *</label>
+                          <select className="form-select" value={dateFamilie.tipFamilie} onChange={e => setDateFamilie({...dateFamilie, tipFamilie: e.target.value})}>
+                              <option value="monoparentala">Familie monoparentală (Un singur părinte)</option>
+                              <option value="integrala">Familie integrală (Căsătoriți / Doi părinți)</option>
+                          </select>
+                      </div>
+                      {dateFamilie.tipFamilie === 'integrala' && (
+                          <div className="form-row">
+                              <div className="form-group">
+                                  <label>CNP Soț/Soție *</label>
+                                  <input type="text" className="form-input" maxLength={13} placeholder="Introduceți CNP" value={dateFamilie.cnpSot} onChange={handleCnpSotChange} />
+                              </div>
+                              <div className="form-group">
+                                  <label>Nume Soț/Soție (Validare sistem)</label>
+                                  <input type="text" className="form-input" disabled style={{ background: 'var(--bg)' }} value={dateFamilie.numeSot || (dateFamilie.cnpSot.length === 13 ? 'Se caută...' : '')} />
+                              </div>
+                          </div>
+                      )}
+                  </div>
+              )}
 
               <div className="form-group" style={{ marginTop: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
@@ -444,6 +453,7 @@ export default function DosarNou() {
                   <span style={{ fontSize: 13.5 }}>Declar pe propria răspundere că datele introduse sunt corecte și corespund cu realitatea.</span>
                 </label>
               </div>
+              
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
                   <input type="checkbox" style={{ width: 18, height: 18 }} checked={dateCerere.acord_gdpr} onChange={(e) => setDateCerere({...dateCerere, acord_gdpr: e.target.checked})} />
@@ -451,15 +461,24 @@ export default function DosarNou() {
                 </label>
               </div>
 
+              {isCopil && (
+                  <div className="form-group">
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
+                          <input type="checkbox" style={{ width: 18, height: 18 }} checked={dateFamilie.cetateanUe} onChange={(e) => setDateFamilie({...dateFamilie, cetateanUe: e.target.checked})} />
+                          <span style={{ fontSize: 13.5 }}>Declar pe propria răspundere că sunt cetățean al Uniunii Europene.</span>
+                      </label>
+                  </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-                <button className="btn btn-secondary" onClick={prevStep}>⬅️ Înapoi</button>
-                <button className="btn btn-primary" onClick={nextStep}>Continuare ➡️</button>
+                <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
               </div>
             </>
           )}
 
-          {/* PASUL 2 */}
-          {step === 2 && (
+          {/* PASUL 2: INFORMATII / DETALII ALOCATIE / DETALII INDEMNIZATIE */}
+          {step === 2 && !isCopil && (
             <>
               <div className="card-header">
                 <div>
@@ -472,7 +491,7 @@ export default function DosarNou() {
                 <div style={{ display: 'flex', gap: 10 }}>
                   {['normal', 'urgent'].map((p) => (
                     <button key={p} type="button" onClick={() => setPrioritate(p)} className={`btn ${prioritate === p ? 'btn-primary' : 'btn-secondary'}`}>
-                      {p === 'urgent' ? '🔴 Urgent' : '🔵 Normal'}
+                      {p === 'urgent' ? '🔴 Urgent' : '🟢 Normal'}
                     </button>
                   ))}
                 </div>
@@ -480,15 +499,93 @@ export default function DosarNou() {
               <div className="form-group">
                 <label>Descrierea situației *</label>
                 <textarea className="form-textarea" rows={6} 
-                  placeholder="Informații care considerați că vor fi utile comisiei de evaluare..."
+                  placeholder="Informații care considerați vor fi utile..."
                   value={descriere} onChange={(e) => setDescriere(e.target.value)} 
                   style={{ minHeight: 140 }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-                <button className="btn btn-secondary" onClick={prevStep}>⬅️ Înapoi</button>
-                <button className="btn btn-primary" onClick={nextStep}>Continuare ➡️</button>
+                <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
               </div>
             </>
+          )}
+
+          {step === 2 && isCopil && (
+             <>
+               <div className="card-header">
+                  <div>
+                    <div className="card-title">{tip === 'alocatie' ? 'Detalii Școlare Copil' : 'Detalii Indemnizație'}</div>
+                    <div className="card-subtitle">Completați datele specifice pentru acordarea drepturilor bănești.</div>
+                  </div>
+               </div>
+
+               {tip === 'alocatie' ? (
+                   <>
+                       <div className="form-group">
+                           <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
+                               <input 
+                                  type="checkbox" style={{ width: 18, height: 18 }} 
+                                  checked={dateAlocatie.acelasiJudet} 
+                                  onChange={e => setDateAlocatie({...dateAlocatie, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', cadruDidacticId: ''})} 
+                               />
+                               <span style={{ fontSize: 13.5 }}>Instituția de învățământ este în același județ cu domiciliul meu?</span>
+                           </label>
+                       </div>
+
+                       <div className="form-row">
+                           {!dateAlocatie.acelasiJudet && (
+                               <div className="form-group">
+                                   <label>Județ Instituție *</label>
+                                   <select className="form-input" value={dateAlocatie.judet} onChange={(e) => setDateAlocatie({...dateAlocatie, judet: e.target.value, cadruDidacticId: ''})}>
+                                       <option value="">Alege județul...</option>
+                                       {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
+                                   </select>
+                               </div>
+                           )}
+
+                           <div className="form-group" style={{ flex: 2 }}>
+                               <label>Tip Cadru Didactic *</label>
+                               <select className="form-select" value={dateAlocatie.tipCadru} onChange={e => setDateAlocatie({...dateAlocatie, tipCadru: e.target.value, cadruDidacticId: ''})}>
+                                   <option value="">Alege...</option>
+                                   <option value="educator">Educator (Grădiniță)</option>
+                                   <option value="invatator">Învățător (Clasele I-IV)</option>
+                                   <option value="profesor">Profesor Diriginte (Clasele V-XII)</option>
+                               </select>
+                           </div>
+                       </div>
+
+                       <div className="form-group">
+                           <label>Reprezentant Învățământ (din baza de date) *</label>
+                           <select className="form-select" value={dateAlocatie.cadruDidacticId} onChange={e => setDateAlocatie({...dateAlocatie, cadruDidacticId: e.target.value})} disabled={!judetScoala || !dateAlocatie.tipCadru}>
+                               <option value="">
+                                   {judetScoala && dateAlocatie.tipCadru 
+                                      ? (cadreFiltrate.length > 0 ? 'Alege persoana care va completa adeverința...' : 'Nicio persoană găsită pentru aceste criterii') 
+                                      : 'Alegeți județul și tipul'}
+                               </option>
+                               {cadreFiltrate.map(cd => (
+                                  <option key={cd.id} value={cd.id}>
+                                      {cd.prenume} {cd.nume} — {cd.institutie} ({cd.tip})
+                                  </option>
+                               ))}
+                           </select>
+                           <p className="form-hint">*Persoana selectată va primi o notificare oficială în platformă pentru a completa adeverința școlară în mod digital.</p>
+                       </div>
+                   </>
+               ) : (
+                   <div className="form-group">
+                       <label>Cine solicită acordarea indemnizației? *</label>
+                       <select className="form-select" value={dateIndemnizatie.beneficiar} onChange={e => setDateIndemnizatie({...dateIndemnizatie, beneficiar: e.target.value})}>
+                           <option value="titular">Titularul cererii (Eu)</option>
+                           <option value="partener">Partenerul (Soțul / Soția)</option>
+                       </select>
+                   </div>
+               )}
+
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+                   <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                   <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
+               </div>
+             </>
           )}
 
           {/* PASUL 3: Documente */}
@@ -500,27 +597,20 @@ export default function DosarNou() {
                   <div className="card-subtitle">Vă rugăm atașați documentele suport cerute de lege.</div>
                 </div>
               </div>
-
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>1. Documente de bază</h4>
                 <BoxIncarcare label="Act de identitate (Buletin / CI) *" file={docIdentitate} setFile={setDocIdentitate} />
-                <BoxIncarcare label="Document privind veniturile (Adeverință salariat / Cupon pensie / ANAF) *" file={docVenit} setFile={setDocVenit} />
+                <BoxIncarcare label="Document privind veniturile (Adeverință salariat / Cupon pensie) *" file={docVenit} setFile={setDocVenit} />
               </div>
-
+              
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginBottom: 20 }}>
                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>2. Solicitare Scrisoare Medicală Tip</h4>
-                
                 <div className="form-group">
                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
-                    <input type="checkbox" style={{ width: 18, height: 18 }} 
-                       checked={medicFam.acelasiJudet} 
-                       onChange={(e) => {
-                        setMedicFam({...medicFam, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', medic: ''});
-                      }} />
+                    <input type="checkbox" style={{ width: 18, height: 18 }} checked={medicFam.acelasiJudet} onChange={(e) => setMedicFam({...medicFam, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', medic: ''})} />
                     <span style={{ fontSize: 13.5 }}>Medicul de familie este din același județ cu domiciliul meu?</span>
                   </label>
                 </div>
-                
                 <div className="form-row">
                   {!medicFam.acelasiJudet && (
                     <div className="form-group">
@@ -531,25 +621,15 @@ export default function DosarNou() {
                       </select>
                     </div>
                   )}
-                  
                   <div className="form-group" style={{ flex: 2 }}>
                     <label>Selectați Medicul de familie (din baza de date)</label>
-                    <select 
-                      className="form-input" 
-                      value={medicFam.medic} 
-                      onChange={(e) => setMedicFam({...medicFam, medic: e.target.value})} 
-                      disabled={!judetMedicFam}
-                    >
-                      <option value="">{judetMedicFam ? (mediciFamilie.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit în acest județ') : 'Alegeți întâi județul'}</option>
-                      {mediciFamilie.map(m => (
-                        <option key={m.id} value={m.id}>
-                          Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}
-                        </option>
-                      ))}
+                    <select className="form-input" value={medicFam.medic} onChange={(e) => setMedicFam({...medicFam, medic: e.target.value})} disabled={!judetMedicFam}>
+                      <option value="">{judetMedicFam ? (mediciFamilie.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit în acest județ') : 'Alegeți județul'}</option>
+                      {mediciFamilie.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
                     </select>
                   </div>
                 </div>
-                <p style={{fontSize: 12, color: 'var(--text-3)'}}>*Medicul va fi notificat automat să completeze scrisoarea online, direct în platformă.</p>
+                <p className="form-hint">*Medicul va fi notificat automat să completeze scrisoarea online.</p>
               </div>
 
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -557,7 +637,6 @@ export default function DosarNou() {
                   <h4 style={{ fontSize: 14, color: 'var(--text-1)', margin: 0 }}>3. Solicitare Referate Medici Specialiști</h4>
                   <button className="btn btn-secondary btn-sm" onClick={adaugaReferat}>+ Adaugă specialitate</button>
                 </div>
-
                 {referate.length === 0 ? (
                   <p style={{ fontSize: 13, color: 'var(--text-2)', fontStyle: 'italic', margin: 0 }}>Nu ați adăugat nicio solicitare pentru medici specialiști.</p>
                 ) : (
@@ -569,7 +648,6 @@ export default function DosarNou() {
                            <button onClick={() => stergeReferat(ref.id)} style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: 'none', borderRadius: 4, padding: '4px 8px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Șterge</button>
                         </div>
                         <h5 style={{ fontSize: 13, marginBottom: 12, marginTop: 0 }}>Solicitare Referat #{index + 1}</h5>
-                        
                         <div className="form-row">
                           <div className="form-group">
                             <label>Specialitate</label>
@@ -578,7 +656,6 @@ export default function DosarNou() {
                               {SPECIALITATI_MEDICALE.map(s => <option key={s} value={s}>{s}</option>)}
                             </select>
                           </div>
-                          
                           <div className="form-group">
                             <label>Județ medic</label>
                             <select className="form-input" value={ref.judet} onChange={(e) => updateReferat(ref.id, 'judet', e.target.value)}>
@@ -587,36 +664,56 @@ export default function DosarNou() {
                             </select>
                           </div>
                         </div>
-
                         <div className="form-group">
                           <label>Medic specialist (din baza de date)</label>
                           <select className="form-input" value={ref.medic} onChange={(e) => updateReferat(ref.id, 'medic', e.target.value)} disabled={!ref.judet || !ref.specialitate}>
                           <option value="">{(ref.judet && ref.specialitate) ? (mediciSpecialistiDisponibili.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit') : 'Alegeți specialitatea și județul'}</option>
-                          {mediciSpecialistiDisponibili.map(m => (
-                           <option key={m.id} value={m.id}>
-                            Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}
-                            </option>
-                          ))}
+                          {mediciSpecialistiDisponibili.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
                           </select>
                         </div>
-                        <p style={{fontSize: 12, color: 'var(--text-3)'}}>*Medicul va completa referatul direct în platformă.</p>
                       </div>
                     );
                   })
                 )}
               </div>
-
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-                <button className="btn btn-secondary" onClick={prevStep}>⬅️ Înapoi</button>
-                <button className="btn btn-primary" onClick={nextStep}>Continuare ➡️</button>
+                <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
               </div>
             </>
-          ) : step === 3 && !isHandicap ? (
+          ) : step === 3 && isCopil ? (
+            <>
+               <div className="card-header" style={{ marginBottom: 24 }}>
+                   <div>
+                       <div className="card-title">Încărcare Documente Suport</div>
+                       <div className="card-subtitle">Vă rugăm atașați documentele obligatorii în format PDF sau JPG.</div>
+                   </div>
+               </div>
+               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8 }}>
+                   <BoxIncarcare label="Carte de Identitate Părinte/Părinți *" file={docCIParinti} setFile={setDocCIParinti} />
+                   <BoxIncarcare label="Certificat de Naștere Copil *" file={docCertNastere} setFile={setDocCertNastere} />
+                   <BoxIncarcare label="Extras de Cont (pentru virarea banilor) *" file={docExtrasCont} setFile={setDocExtrasCont} />
+
+                   {dateFamilie.tipFamilie === 'integrala' && (
+                       <BoxIncarcare label="Certificat de Căsătorie / Divorț *" file={docCertCasatorie} setFile={setDocCertCasatorie} />
+                   )}
+
+                   {tip === 'indemnizatie' && (
+                       <BoxIncarcare label="Adeverință de Muncă de la Angajator *" file={docAdevMunca} setFile={setDocAdevMunca} />
+                   )}
+               </div>
+
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+                   <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                   <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
+               </div>
+            </>
+          ) : step === 3 && !isHandicap && !isCopil ? (
             <>
               <div className="card-header">
                 <div>
                   <div className="card-title">Încărcați documentele anexă</div>
-                  <div className="card-subtitle">Formate acceptate: PDF, JPG, PNG · Maxim 5 MB per fișier</div>
+                  <div className="card-subtitle">Formate acceptate: PDF, JPG, PNG | Maxim 5 MB per fișier</div>
                 </div>
               </div>
               <div className="upload-zone" onClick={() => fileInputRef.current?.click()} >
@@ -639,8 +736,8 @@ export default function DosarNou() {
               )}
               
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-                <button className="btn btn-secondary" onClick={prevStep}>⬅️ Înapoi</button>
-                <button className="btn btn-primary" onClick={nextStep}>Continuare ➡️</button>
+                <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
               </div>
             </>
           ) : null}
@@ -651,7 +748,7 @@ export default function DosarNou() {
               <div className="card-header">
                 <div>
                   <div className="card-title">Semnătură electronică olografă</div>
-                  <div className="card-subtitle">Semnați câmpul de mai jos pentru a certifica autenticitatea cererii</div>
+                  <div className="card-subtitle">Semnați în câmpul de mai jos pentru a certifica autenticitatea cererii</div>
                 </div>
               </div>
               <div className="sign-wrap">
@@ -662,8 +759,8 @@ export default function DosarNou() {
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-                <button className="btn btn-secondary" onClick={prevStep}>⬅️ Înapoi</button>
-                <button className="btn btn-primary" onClick={() => setStep(5)}>Continuare ➡️</button>
+                <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                <button className="btn btn-primary" onClick={() => setStep(5)}>Continuare →</button>
               </div>
             </>
           )}
@@ -671,7 +768,7 @@ export default function DosarNou() {
           {/* PASUL 5: Confirmare */}
           {step === 5 && dosarId ? (
             <div style={{ textAlign: 'center', padding: '32px 20px' }}>
-              <div style={{ width: 72, height: 72, background: 'var(--success-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 36 }}>✅</div>
+              <div style={{ width: 72, height: 72, background: 'var(--success-bg)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 36 }}>✓</div>
               <h3 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-1)', marginBottom: 10 }}>Dosar depus cu succes!</h3>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap', marginTop: 24 }}>
                 <button className="btn btn-primary" onClick={() => navigate(`/dosar/${dosarId}`)}>Deschide dosarul meu</button>
@@ -688,7 +785,7 @@ export default function DosarNou() {
               </div>
               
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <button className="btn btn-secondary" onClick={() => setStep(4)}>⬅️ Înapoi</button>
+                <button className="btn btn-secondary" onClick={() => setStep(4)}>Înapoi</button>
                 <button className="btn btn-success" onClick={creeazaDosar} disabled={loading}>
                   {loading ? 'Se trimite...' : '✅ Trimite dosarul'}
                 </button>

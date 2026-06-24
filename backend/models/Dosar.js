@@ -5,7 +5,7 @@ const Dosar = sequelize.define('Dosar', {
   id:             { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   numar_dosar:    { type: DataTypes.STRING(50), allowNull: false, unique: true },
   tip: {
-    type: DataTypes.ENUM('certificat_handicap', 'adoptie', 'plasament', 'alocatie', 'evaluare_adulti', 'alte_servicii'),
+    type: DataTypes.ENUM('certificat_handicap', 'adoptie', 'plasament', 'alocatie', 'indemnizatie','evaluare_adulti', 'alte_servicii'),
     allowNull: false,
   },
   status: {
