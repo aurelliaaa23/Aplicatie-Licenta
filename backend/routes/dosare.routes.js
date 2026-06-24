@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { Dosar, Utilizator, Rol, Document, IstoricActiuni, ProgramareComisie, ProfilFunctionar, SolicitareMedicala } = require('../models');
+const { Dosar, Utilizator, Rol, Document, IstoricActiuni, ProgramareComisie, ProfilFunctionar, SolicitareMedicala, SablonDocument } = require('../models');
 const { verificaToken, verificaRol } = require('../middleware/auth.middleware');
 const { Op } = require('sequelize');
 const fs = require('fs');
 const path = require('path');
 const PDFDocument = require('pdfkit');
+const htmlToPdf = require('html-pdf-node');
 const nodemailer = require('nodemailer');
 
 const mailer = nodemailer.createTransport({
@@ -21,7 +22,6 @@ function mapTipLaDepartament(tip) {
     adoptie: 'Adopții',
     plasament: 'Protecția Copilului',
     alocatie: 'Protecția Copilului',
-    evaluare_adulti: 'Evaluare Adulți (SECPAH)',
     alte_servicii: 'Asistență Socială',
   };
   return map[tip] || 'Asistență Socială';
@@ -35,6 +35,28 @@ function getDepartamenteEligibile(tip) {
   if (tip === 'plasament' || tip === 'alocatie') return ['Protecția Copilului', 'Asistență Socială'];
   
   return ['Asistență Socială', 'General', 'Relații cu Publicul'];
+}
+
+// Funcție universală pentru înlocuirea variabilelor HTML
+async function genereazaDinSablon(nume_sablon, date_inlocuire, caleFisier) {
+  try{
+  const sablon = await SablonDocument.findOne({ where: { nume_sablon } });
+  if (!sablon) throw new Error(`Șablonul ${nume_sablon} nu există în baza de date!`);
+
+  let html = sablon.continut_html;
+  for (const [key, value] of Object.entries(date_inlocuire)) {
+    const regex = new RegExp(`{{${key.toUpperCase()}}}`, 'g');
+    html = html.replace(regex, value || '-');
+  }
+  html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
+
+  const options = { format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' } };
+  const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, options);
+  fs.writeFileSync(caleFisier, pdfBuffer);
+}catch (error) {
+    console.error(`❌ Eroare internă la PDF (${nume_sablon}):`, error.message);
+    throw error; // Aruncăm eroarea mai departe pentru a fi trimisă frontend-ului
+  }
 }
 
 // ── 1. GET /api/dosare/medici/solicitari (REPARAT: SORTARE DUPĂ creat_la) ──
@@ -266,147 +288,81 @@ router.post('/:id/notifica-medici', verificaToken, async (req, res) => {
   } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
-// ── 7. POST /api/dosare/:id/scrisoare-medicala (SALVARE PDF MEDIC) ─────────
+// ── POST /api/dosare/:id/scrisoare-medicala (HTML TEMPLATE) ────────────────
 router.post('/:id/scrisoare-medicala', verificaToken, async (req, res) => {
   try {
     const dosarId = req.params.id;
-    const { nume, prenume, cnp, varsta, anamneza, diagnostic_principal, diagnostic_secundar, internari, deplasabil, semnatura_base64 } = req.body;
+    const { tip_scrisoare, ...payloadFront } = req.body;
+    // Numele șablonului depinde de selecția medicului din front
+    const nume_sablon = tip_scrisoare === 'specialist' ? 'Referat_Medic_Specialist' : 'Scrisoare_Medic_Familie';
 
     const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-    const fileName = `Scrisoare_Medicala_${Date.now()}.pdf`;
+    
+    const fileName = `${nume_sablon}_${Date.now()}.pdf`;
     const filePath = path.join(dir, fileName);
-    const stream = fs.createWriteStream(filePath);
-    const doc = new PDFDocument({ margin: 50 });
-    doc.pipe(stream);
 
-    doc.fontSize(16).font('Helvetica-Bold').text('SCRISOARE MEDICALĂ', { align: 'center' });
-    doc.moveDown(1.5);
-    doc.fontSize(12).font('Helvetica');
-    doc.text(`Pacient: ${nume} ${prenume}, CNP: ${cnp}, Vârstă: ${varsta} ani`);
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('1. Anamneza:');
-    doc.font('Helvetica').text(anamneza || '-');
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('2. Diagnostic principal:');
-    doc.font('Helvetica').text(diagnostic_principal || '-');
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('3. Diagnostic secundar:');
-    doc.font('Helvetica').text(diagnostic_secundar || '-');
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('4. Internări:');
-    if (internari && internari.length > 0) {
-      internari.forEach((int, i) => { doc.font('Helvetica').text(`${i+1}. ${int.unitate} (${int.data_inceput} - ${int.data_sfarsit}) | Diagnostic: ${int.diagnostic}`); });
-    } else {
-      doc.font('Helvetica').text('Fără internări declarate.');
+    // Daca e medic de familie si are array de internari, convertim la HTML
+    if (tip_scrisoare !== 'specialist' && payloadFront.internari && Array.isArray(payloadFront.internari)) {
+      if (payloadFront.internari.length === 0) payloadFront.internari_html = '<li>Fără internări declarate.</li>';
+      else {
+        payloadFront.internari_html = payloadFront.internari.map(i => 
+          `<li>${i.unitate} (${i.data_inceput} - ${i.data_sfarsit}) | Diagnostic: ${i.diagnostic}</li>`
+        ).join('');
+      }
     }
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('5. Starea de deplasabilitate:');
-    doc.font('Helvetica').text(deplasabil || '-');
-    doc.moveDown(2);
-    doc.text(`Data completării: ${new Date().toLocaleDateString('ro-RO')}`);
-    doc.moveDown();
-    doc.text('Semnătura și parafa medicului:');
-    if (semnatura_base64) {
-      const base64Data = semnatura_base64.replace(/^data:image\/(png|jpeg);base64,/, "");
-      doc.image(Buffer.from(base64Data, 'base64'), { width: 150 });
-    }
-    doc.end();
 
-    stream.on('finish', async () => {
-      await Document.create({
-        dosar_id: dosarId, utilizator_id: req.utilizator.id, tip_document: 'certificat_medical',
-        nume_fisier: fileName, cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, validat: true 
-      });
+    await genereazaDinSablon(nume_sablon, payloadFront, filePath);
 
-      const solicitare = await SolicitareMedicala.findOne({ where: { dosar_id: dosarId, medic_id: req.utilizator.id } });
-      if (solicitare) await solicitare.update({ status: 'finalizata' });
-
-      res.json({ mesaj: 'Scrisoarea medicală a fost generată și atașată!' });
+    await Document.create({
+      dosar_id: dosarId, utilizator_id: req.utilizator.id, tip_document: 'certificat_medical',
+      nume_fisier: fileName, cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, status_document: 'incarcat', 
     });
 
+    const solicitare = await SolicitareMedicala.findOne({ where: { dosar_id: dosarId, medic_id: req.utilizator.id } });
+    if (solicitare) await solicitare.update({ status: 'finalizata' });
+
+    res.json({ mesaj: 'Documentul medical a fost generat din șablon și atașat!' });
   } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
-// ── 8. POST /api/dosare/:id/ancheta-sociala (SALVARE PDF PRIMĂRIE) ──────────
+// ── POST /api/dosare/:id/ancheta-sociala (HTML TEMPLATE) ───────────────────
 router.post('/:id/ancheta-sociala', verificaToken, async (req, res) => {
   try {
     const dosarId = req.params.id;
-    const { nume, prenume, cnp, conditii_locuit, situatie_familiala, venituri, recomandare, semnatura_base64 } = req.body;
+    const payloadFront = req.body;
 
     const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
+    
     const fileName = `Ancheta_Sociala_${Date.now()}.pdf`;
     const filePath = path.join(dir, fileName);
-    const stream = fs.createWriteStream(filePath);
-    const doc = new PDFDocument({ margin: 50 });
-    doc.pipe(stream);
 
-    doc.fontSize(16).font('Helvetica-Bold').text('ANCHETĂ SOCIALĂ', { align: 'center' });
-    doc.moveDown(1.5);
-    doc.fontSize(12).font('Helvetica');
-    doc.text(`Subsemnatul/a, funcționar în cadrul compartimentului Asistență Socială, am efectuat ancheta socială pentru:`);
-    doc.font('Helvetica-Bold').text(`Cetățean: ${nume} ${prenume}, CNP: ${cnp}`);
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('1. Condiții de locuit:');
-    doc.font('Helvetica').text(conditii_locuit || '-');
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('2. Situația familială:');
-    doc.font('Helvetica').text(situatie_familiala || '-');
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('3. Situația veniturilor:');
-    doc.font('Helvetica').text(venituri || '-');
-    doc.moveDown();
-    doc.font('Helvetica-Bold').text('4. Concluzii și Recomandări:');
-    doc.font('Helvetica').text(recomandare || '-');
-    doc.moveDown(2);
-    doc.text(`Data completării: ${new Date().toLocaleDateString('ro-RO')}`);
-    doc.moveDown(2);
-    doc.text('Semnătura funcționar primărie:');
-    if (semnatura_base64) {
-      const base64Data = semnatura_base64.replace(/^data:image\/(png|jpeg);base64,/, "");
-      doc.image(Buffer.from(base64Data, 'base64'), { width: 150 });
-    }
-    doc.end();
+    await genereazaDinSablon('Ancheta_Sociala', payloadFront, filePath);
 
-    stream.on('finish', async () => {
-      await Document.create({
-        dosar_id: dosarId, utilizator_id: req.utilizator.id, tip_document: 'ancheta_sociala',
-        nume_fisier: fileName, cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, validat: true 
-      });
-      res.json({ mesaj: 'Ancheta socială a fost generată și atașată dosarului!' });
+    await Document.create({
+      dosar_id: dosarId, utilizator_id: req.utilizator.id, tip_document: 'ancheta_sociala',
+      nume_fisier: fileName, cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, status_document: 'incarcat' 
     });
-
+    res.json({ mesaj: 'Ancheta socială a fost generată din șablon și atașată dosarului!' });
   } catch (err) { res.status(500).json({ eroare: err.message }); }
 });
 
 // ── 10. POST /api/dosare/:id/finalizare-comisie (GENEREAZĂ CERTIFICAT/RESPINGE) ──
+// ── 10. POST /api/dosare/:id/finalizare-comisie ────────────────────────────
 router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
   try {
     const { actiune, grad, revizuire_luni, motiv } = req.body;
     const dosar = await Dosar.findByPk(req.params.id, { include: [{ model: Utilizator, as: 'cetatean' }] });
-    
     if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
 
     if (actiune === 'respinge') {
       await dosar.update({ status: 'respins', motiv_respingere: motiv });
       await mailer.sendMail({
-        from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
-        to: dosar.cetatean.email,
+        from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`, to: dosar.cetatean.email,
         subject: `[DGASPC] Decizie Comisie - Dosar Respins nr. ${dosar.numar_dosar}`,
-        html: `<p>Stimate/ă ${dosar.cetatean.prenume} ${dosar.cetatean.nume},</p>
-               <p>Dosarul dumneavoastră a fost evaluat de comisia de specialitate și a fost <strong>RESPINS</strong>.</p>
-               <div style="background:#fce8e6; padding:15px; border-left:4px solid #c5221f; margin:20px 0;">
-                 <p style="margin:0; color:#c5221f;"><strong>Motivul respingerii:</strong><br/>${motiv}</p>
-               </div>`
+        html: `<p>Stimate/ă ${dosar.cetatean.prenume} ${dosar.cetatean.nume},</p><p>Dosarul a fost <strong>RESPINS</strong>.</p><div style="background:#fce8e6; padding:15px; border-left:4px solid #c5221f; margin:20px 0;"><p style="margin:0; color:#c5221f;"><strong>Motivul respingerii:</strong><br/>${motiv}</p></div>`
       }).catch(console.error);
-
-      await IstoricActiuni.create({
-        utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar respins', detalii: `Motiv: ${motiv}`, adresa_ip: req.ip
-      }).catch(e => console.error(e));
-
       return res.json({ mesaj: 'Dosar respins! Cetățeanul a fost notificat.' });
     }
 
@@ -414,63 +370,57 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
       const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       
-      const fileName = `Certificat_Handicap_${Date.now()}.pdf`;
-      const filePath = path.join(dir, fileName);
-      const stream = fs.createWriteStream(filePath);
-      const doc = new PDFDocument({ margin: 50 });
-      doc.pipe(stream);
-
-      doc.fontSize(16).font('Helvetica-Bold').text('CERTIFICAT', { align: 'center' });
-      doc.fontSize(14).text('de încadrare în grad de handicap', { align: 'center' });
-      doc.moveDown(2);
-      doc.fontSize(12).font('Helvetica').text('Comisia de evaluare persoane adulte cu handicap, constituită în temeiul Legii nr.448/2006, privind protecția și promovarea drepturilor persoanelor cu handicap, republicată, cu modificările și completările ulterioare, evaluând dosarul și propunerea serviciului de evaluare complexă a persoanelor adulte cu handicap:', { align: 'justify' });
-      doc.moveDown();
-      doc.font('Helvetica-Bold').text(`Privind pe domnul/doamna: ${dosar.cetatean.prenume} ${dosar.cetatean.nume}`);
-      doc.text(`C.N.P.: ${dosar.cetatean.cnp || '..........................'}`);
-      doc.text(`Domiciliul: Județ/Oraș ${dosar.cetatean.judet || ''} ${dosar.cetatean.oras || ''}`);
-      doc.moveDown();
-      doc.font('Helvetica').text('Stabilește următoarele:');
-      doc.moveDown();
-      doc.font('Helvetica-Bold').text(`1. Se încadrează în gradul de handicap: ${grad ? grad.toUpperCase() : 'NESPECIFICAT'}`);
+      const numeFisier = `Certificat_Handicap_${Date.now()}.pdf`; 
+      const caleAbsoluta = path.join(dir, numeFisier);
       
-      let valabilitateText = "Permanent (Nelimitat)";
+      let valabilitateText = "Permanent (Nelimitat)"; 
       let dataRevizuire = "Nu este cazul";
+      
       if (revizuire_luni && revizuire_luni !== 'nelimitat') {
         const data = new Date(); data.setMonth(data.getMonth() + parseInt(revizuire_luni));
-        valabilitateText = `${revizuire_luni} luni`; dataRevizuire = data.toLocaleDateString('ro-RO');
+        valabilitateText = `${revizuire_luni} luni`; 
+        dataRevizuire = data.toLocaleDateString('ro-RO');
       }
-      doc.text(`2. Valabilitate: ${valabilitateText}`);
-      doc.text(`3. Termen de revizuire: ${dataRevizuire}`);
-      doc.moveDown(4);
-      doc.text('Președinte Comisie,', { align: 'right' });
-      doc.font('Helvetica').text('Semnătură electronică validată', { align: 'right', size: 10, color: 'gray' });
-      doc.end();
 
-      stream.on('finish', async () => {
-        await Document.create({
-          dosar_id: dosar.id, utilizator_id: req.utilizator.id, tip_document: 'decizie',
-          nume_fisier: 'Certificat_Incadrare_Handicap.pdf', cale_fisier: `uploads/${req.utilizator.id}/${fileName}`, validat: true
-        });
-        
-        await dosar.update({ status: 'aprobat' });
+      // Împachetăm datele extrase pentru șablonul HTML
+      const payloadSablon = {
+        nume: dosar.cetatean.nume,
+        prenume: dosar.cetatean.prenume,
+        cnp: dosar.cetatean.cnp || '-',
+        judet: dosar.cetatean.judet || '-',
+        oras: dosar.cetatean.oras || '-',
+        grad: grad ? grad.toUpperCase() : 'NESPECIFICAT',
+        valabilitate: valabilitateText,
+        revizuire: dataRevizuire
+      };
 
-        await IstoricActiuni.create({
-          utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar aprobat', detalii: `Certificat emis. Grad: ${grad}`, adresa_ip: req.ip
-        }).catch(e => console.error(e));
+      // Generăm certificatul elegant prin HTML
+      await genereazaDinSablon('Certificat_Incadrare_Handicap', payloadSablon, caleAbsoluta);
 
-        await mailer.sendMail({
-          from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
-          to: dosar.cetatean.email,
-          subject: `[DGASPC] Certificat de Handicap Emis - Dosar ${dosar.numar_dosar}`,
-          html: `<p>Stimate/ă ${dosar.cetatean.prenume} ${dosar.cetatean.nume},</p>
-                 <p>Vă informăm cu bucurie că dosarul a fost <strong>APROBAT</strong> de comisie.</p>
-                 <p>Certificatul dumneavoastră a fost emis în format electronic. Îl puteți descărca direct din secțiunea "Documente atașate" a dosarului.</p>`
-        }).catch(console.error);
-
-        res.json({ mesaj: 'Certificat generat și dosar aprobat cu succes!' });
+      await Document.create({ 
+        dosar_id: dosar.id, 
+        tip_document: 'decizie', 
+        nume_fisier: numeFisier, 
+        cale_fisier: `uploads/${req.utilizator.id}/${numeFisier}`, 
+        status_document: 'validat' 
       });
+      
+      await dosar.update({ status: 'aprobat' });
+      
+      await mailer.sendMail({
+        from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
+        to: dosar.cetatean.email,
+        subject: `[DGASPC] Certificat de Handicap Emis - Dosar ${dosar.numar_dosar}`,
+        html: `<p>Stimate/ă ${dosar.cetatean.prenume} ${dosar.cetatean.nume},</p>
+               <p>Vă informăm cu bucurie că dosarul a fost <strong>APROBAT</strong> de comisie.</p>
+               <p>Certificatul dumneavoastră a fost emis în format electronic. Îl puteți descărca direct din secțiunea "Documente atașate" a dosarului.</p>`
+      }).catch(console.error);
+
+      res.json({ mesaj: 'Certificat generat din șablon cu succes!' });
     }
-  } catch (err) { res.status(500).json({ eroare: err.message }); }
+  } catch (err) { 
+    res.status(500).json({ eroare: err.message }); 
+  }
 });
 
 // ── 11. PATCH /api/dosare/document/:docId/aprobare (APROBARE DOCUMENT) ─────

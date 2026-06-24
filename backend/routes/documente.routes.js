@@ -5,6 +5,8 @@ const { verificaToken } = require('../middleware/auth.middleware');
 const upload = require('../middleware/upload.middleware');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+const htmlToPdf = require('html-pdf-node');
+const { SablonDocument } = require('../models');
 
 function eliminaDiacritice(str) {
   if (!str) return '';
@@ -128,50 +130,26 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
     if (date_cerere.tip_cerere === 'reevaluare_agravare') tipT = 'Reevaluare pentru agravare stare de sanatate';
     tipT = eliminaDiacritice(tipT);
 
-    doc.fontSize(12).font('Helvetica-Bold')
-       .text('SERVICIUL DE EVALUARE COMPLEXA A PERSOANELOR ADULTE CU HANDICAP', { align: 'center' });
-    doc.moveDown(3);
+    const sablon = await SablonDocument.findOne({ where: { nume_sablon: 'Cerere_Evaluare_Handicap' }});
+    let html = sablon.continut_html;
+    html = html.replace(/{{NUME}}/g, user.nume);  
+    html = html.replace(/{{PRENUME}}/g, user.prenume);
+    html = html.replace(/{{CNP}}/g, user.cnp);
+    html = html.replace(/{{SERIE_CI}}/g, date_cerere.serie_ci);
+    html = html.replace(/{{NUMAR_CI}}/g, date_cerere.numar_ci);
+    html = html.replace(/{{JUDET}}/g, user.judet);
+    html = html.replace(/{{ORAS}}/g, user.oras);
+    html = html.replace(/{{STRADA}}/g, date_cerere.strada);
+    html = html.replace(/{{TELEFON}}/g, user.telefon);
+    html = html.replace(/{{EMAIL}}/g, user.email);
+    html = html.replace(/{{TIP_CERERE}}/g, date_cerere.tip_cerere === 'dosar_nou' ? 'Dosar Nou' : 'Reevaluare');
+    html = html.replace(/{{SEMNATURA_BASE64}}/g, semnatura_base64 || '');
+    html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
 
-    doc.fontSize(12).font('Helvetica-Bold').text('DOMNULE/DOAMNA DIRECTOR,');
-    doc.moveDown(1.5);
+    const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, { format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' } });
+    fs.writeFileSync(caleAbsoluta, pdfBuffer);
 
-    doc.fontSize(11).font('Helvetica')
-       .text(`Subsemnatul(a) ${numeComplet} si legitimat(a) cu CI/BI seria ${serieCi} nr. ${numarCi} avand CNP ${cnp} cu domiciliul in orasul/localitatea ${oras}, judet/sector ${judet}, str. ${stradaDetaliata}, telefon ${telefon}, e-mail ${email} solicit evaluarea in cadrul Serviciului de Evaluare Complexa a Persoanelor Adulte cu Handicap, in vederea:`,
-         { align: 'justify', lineGap: 4 });
 
-    doc.moveDown(1);
-    doc.fontSize(12).font('Helvetica-Bold').text(tipT, { align: 'center' });
-    doc.moveDown(1.5);
-
-    doc.fontSize(11).font('Helvetica')
-       .text('Declar pe proprie raspundere ca datele declarate in prezenta cerere sunt corecte si complete si ca documentele depuse sunt conforme cu originalul.', { align: 'justify', lineGap: 3 });
-    doc.moveDown(0.5);
-    doc.text('Sunt de acord ca datele mele cu caracter personal sa fie prelucrate de DGASPC in conformitate cu reglementarile GDPR.', { align: 'justify', lineGap: 3 });
-    doc.moveDown(3);
-
-    const yBazaSemnatura = doc.y;
-    doc.text(`Data: ${new Date().toLocaleDateString('ro-RO')}`, 50, yBazaSemnatura);
-    doc.text('Semnatura:', 350, yBazaSemnatura);
-
-    if (semnatura_base64) {
-      const base64Data = semnatura_base64.replace(/^data:image\/png;base64,/, "");
-      const imgBuffer  = Buffer.from(base64Data, 'base64');
-      doc.image(imgBuffer, 340, yBazaSemnatura + 10, { width: 120 });
-    }
-
-    doc.moveDown(6);
-    doc.fontSize(8).font('Helvetica')
-       .text('Datele dumneavoastra cu caracter personal sunt prelucrate de D.G.A.S.P.C. in conformitate cu art. 6 din Regulamentul UE 679/2016 in scopul indeplinirii atributiilor legale.',
-         50, doc.page.height - 100, { align: 'justify', lineGap: 1.5 });
-
-    doc.end();
-
-    stream.on('error', (err) => {
-      console.error('Stream error cerere handicap:', err);
-      if (!res.headersSent) res.status(500).json({ eroare: 'Eroare la scrierea fișierului PDF.' });
-    });
-
-    stream.on('finish', async () => {
       try {
         await Document.create({
           dosar_id,
@@ -186,7 +164,6 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
         console.error('Eroare DB după generare cerere handicap:', dbErr);
         if (!res.headersSent) res.status(500).json({ eroare: dbErr.message });
       }
-    });
 
   } catch (err) {
     console.error('Eroare la generare PDF:', err);

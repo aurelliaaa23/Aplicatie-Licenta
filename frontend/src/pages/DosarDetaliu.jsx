@@ -73,6 +73,32 @@ export default function DosarDetaliu() {
   const canvasRef = useRef(null);
   const [isDrawing, setIsDrawing] = useState(false);
 
+  // --- STATE PENTRU MEDIC ---
+  const [tipFormMedic, setTipFormMedic] = useState('familie'); // 'familie' sau 'specialist'
+  const [formMedicFam, setFormMedicFam] = useState({
+    anamneza: '', diagnostic_principal: '', diagnostic_secundar: '', internari: [], deplasabil: 'Este deplasabilă (autonomă/cu sprijin)'
+  });
+  const [formMedicSpec, setFormMedicSpec] = useState({
+    diagnostic: '', evolutie_boala: 'Staționară', pronostic_viata: 'Bun', pronostic_vindecare: 'Bun',
+    tratamente_urmate: '', raspuns_tratament: 'Bun', cooperare: 'Bună'
+  });
+
+  // --- STATE PENTRU PRIMARIE (MAMUT) ---
+  const [formPrimarie, setFormPrimarie] = useState({
+    ocupatia: '', studii: 'Medii', stare_civila: 'Necăsătorit', copii: 'Nu', detalii_copii: '',
+    reprezentant_legal: 'Nu', detalii_reprezentant: '', igiena_corporala: 'Fără ajutor', imbracat_dezbracat: 'Fără ajutor',
+    servire_hranire: 'Fără ajutor', mobilizare: 'Fără ajutor', deplasare_interior: 'Fără ajutor', deplasare_exterior: 'Fără ajutor',
+    comunicare_mijloace: 'Fără ajutor', dispozitive_deplasare: 'Niciunul', preparare_hrana: 'Fără ajutor',
+    activitati_gospodaresti: 'Fără ajutor', gestionare_venituri: 'Fără ajutor', cumparaturi: 'Fără ajutor',
+    administrare_tratament: 'Fără ajutor', utilizare_transport: 'Fără ajutor', timp_liber: 'Fără ajutor',
+    memorie: 'Își aduce aminte total', vaz: 'Completă fără ochelari', comunicare: 'Bună', orientare: 'Fără probleme',
+    comportament: 'Bun', tip_locuinta: 'Casă', nr_camere: '2', incalzire: 'Centrală', apa_curenta: 'Da', dotari_locuinta: '',
+    coabitare: 'Cu familia', coabitant_bolnav: 'Nu', coabitant_adictii: 'Nu', relatie_familie: 'Bună', risc_neglijare: 'Nu',
+    risc_abuz: 'Nu', pers_contact: '', are_prieteni: 'Da', relatii_prietenie: 'Permanente', participare_comunitate: 'Da', concluzii: ''
+  });
+
+  const setPF = (k, v) => setFormPrimarie(prev => ({ ...prev, [k]: v }));
+
   useEffect(() => { fetchDosar(); }, [id]);
 
   const fetchDosar = async () => {
@@ -173,6 +199,7 @@ export default function DosarDetaliu() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   };
 
+  // --- TRIMITERE CĂTRE BACKEND CU CAPTURARE EROARE REALĂ ---
   const finalizeazaScrisoare = async () => {
     const semnaturaBase64 = canvasRef.current.toDataURL('image/png');
     const blankCanvas = document.createElement('canvas'); blankCanvas.width = canvasRef.current.width; blankCanvas.height = canvasRef.current.height;
@@ -180,9 +207,25 @@ export default function DosarDetaliu() {
     
     setSavingStatus(true);
     try {
-      await api.post(`/dosare/${id}/scrisoare-medicala`, { nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, varsta: getVarstaDinCnp(cetatean.cnp), ...formDataMedic, semnatura_base64: semnaturaBase64 });
-      toast.success('Scrisoarea medicală a fost generată și atașată!'); fetchDosar();
-    } catch { toast.error('Eroare la generarea scrisorii'); } finally { setSavingStatus(false); }
+      const cetatean = dosar.cetatean;
+      const domiciliu = `${cetatean.judet || ''}, ${cetatean.oras || ''}`;
+      
+      let payload = {
+        tip_scrisoare: tipFormMedic,
+        nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu: domiciliu, telefon: cetatean.telefon, semnatura_base64: semnaturaBase64
+      };
+
+      if (tipFormMedic === 'familie') payload = { ...payload, ...formMedicFam };
+      else payload = { ...payload, ...formMedicSpec };
+
+      await api.post(`/dosare/${id}/scrisoare-medicala`, payload);
+      toast.success('Documentul medical a fost generat și atașat!'); fetchDosar();
+    } catch (e) { 
+      // Acum vei vedea mesajul REAL de eroare venit de la backend, nu un "500 Server Error" generic!
+      toast.error(e.response?.data?.eroare || 'Eroare la generarea scrisorii medicale'); 
+    } finally { 
+      setSavingStatus(false); 
+    }
   };
 
   const finalizeazaAnchetaPrimarie = async () => {
@@ -192,9 +235,21 @@ export default function DosarDetaliu() {
     
     setSavingStatus(true);
     try {
-      await api.post(`/dosare/${id}/ancheta-sociala`, { nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, ...formDataPrimarie, semnatura_base64: semnaturaBase64 });
+      const cetatean = dosar.cetatean;
+      const domiciliu = `${cetatean.judet || ''}, ${cetatean.oras || ''}`;
+      
+      const payload = {
+        nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu, telefon: cetatean.telefon,
+        ...formPrimarie, semnatura_base64: semnaturaBase64
+      };
+
+      await api.post(`/dosare/${id}/ancheta-sociala`, payload);
       toast.success('Ancheta socială a fost generată și atașată dosarului!'); fetchDosar();
-    } catch { toast.error('Eroare la generarea anchetei sociale'); } finally { setSavingStatus(false); }
+    } catch (e) { 
+      toast.error(e.response?.data?.eroare || 'Eroare la generarea anchetei sociale'); 
+    } finally { 
+      setSavingStatus(false); 
+    }
   };
 
   const handleMergiLaProgramare = async () => {
@@ -233,7 +288,10 @@ export default function DosarDetaliu() {
   const documenteAtasate = dosar.Documents || dosar.documente || dosar.Documente || [];
   const programareExistenta = dosar.ProgramareComisies?.[0] || dosar.programari?.[0] || dosar.Programari?.[0] || null;
   const esteFinalizat = ['programat_comisie', 'aprobat', 'respins'].includes(dosar.status);
-  
+  const docMedicCompletat = isMedic ? documenteAtasate.find(d => d.tip_document === 'certificat_medical' && d.utilizator_id === utilizator.id) : null;
+  const docPrimarieCompletat = isFunctionarPrimarie ? documenteAtasate.find(d => d.tip_document === 'ancheta_sociala') : null;
+  const documentGenerat = docMedicCompletat || docPrimarieCompletat;
+  const esteFinalizatDeColaborator = !!documentGenerat;
   // Verificăm dacă data comisiei a trecut (folosind coloana corectă)
   const comisieTrecuta = programareExistenta && new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora) < new Date();
   
@@ -384,80 +442,148 @@ export default function DosarDetaliu() {
         </div>
 
       ) : isMedic || isFunctionarPrimarie ? (
-        <div style={{ maxWidth: '900px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ maxWidth: '1000px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 20 }}>
           <div className="card" style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 20px' }}>
             <div style={{ fontSize: 14 }}>Cerere Cetățean: <strong style={{ color: 'var(--blue)' }}>{dosar.numar_dosar}</strong></div>
             <div>Status Solicitare: <span className={`badge badge-incomplet`}>⏳ În așteptare completare</span></div>
           </div>
 
           <div className="card" style={{ padding: 24, borderTop: '4px solid var(--blue)' }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>👤 Date Cetățean</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, padding: 16, background: 'var(--bg)', borderRadius: 8, marginBottom: 24, fontSize: 13.5 }}>
+            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>👤 Date de Identificare</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, padding: 16, background: 'var(--bg)', borderRadius: 8, marginBottom: 24, fontSize: 13.5 }}>
               <div>Nume complet: <strong>{cetatean.prenume} {cetatean.nume}</strong></div>
               <div>CNP: <strong>{cetatean.cnp || '—'}</strong></div>
               <div>Telefon: <strong>{cetatean.telefon || '—'}</strong></div>
-              <div>E-mail: <strong>{cetatean.email || '—'}</strong></div>
-              {isMedic && <div>Vârstă: <strong>{getVarstaDinCnp(cetatean.cnp)} ani</strong></div>}
+              <div style={{ gridColumn: 'span 3' }}>Domiciliu: <strong>{cetatean.judet || ''}, {cetatean.oras || ''}</strong></div>
             </div>
 
+            {/* ----- SECȚIUNE MEDIC ----- */}
             {isMedic && (
               <>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20, color: 'var(--text-1)', borderTop: '1px solid var(--border)', paddingTop: 20 }}>📄 Completare Scrisoare Medicală</h3>
-                <div className="form-group">
-                  <label>1. Anamneza (antecedente personale patologice)</label>
-                  <textarea className="form-textarea" rows="3" value={formDataMedic.anamneza} onChange={e => setFormDataMedic({...formDataMedic, anamneza: e.target.value})}></textarea>
+                <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                  <button className={`btn ${tipFormMedic === 'familie' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTipFormMedic('familie')}>📝 Medic de Familie</button>
+                  <button className={`btn ${tipFormMedic === 'specialist' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTipFormMedic('specialist')}>🩺 Medic Specialist</button>
                 </div>
-                <div className="form-group">
-                  <label>2. Diagnosticul medical (Principal)</label>
-                  <input type="text" className="form-input" value={formDataMedic.diagnostic_principal} onChange={e => setFormDataMedic({...formDataMedic, diagnostic_principal: e.target.value})} />
-                </div>
-                <div className="form-group">
-                  <label>Diagnosticul medical (Secundar / altele)</label>
-                  <textarea className="form-textarea" rows="2" value={formDataMedic.diagnostic_secundar} onChange={e => setFormDataMedic({...formDataMedic, diagnostic_secundar: e.target.value})}></textarea>
-                </div>
-                <div className="form-group">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label style={{ fontWeight: 600 }}>Internări în spital</label>
-                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormDataMedic(f => ({...f, internari: [...f.internari, { data_inceput: '', data_sfarsit: '', unitate: '', diagnostic: '' }]}))}>+ Adaugă internare</button>
-                  </div>
-                  {formDataMedic.internari.map((int, i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr 2fr auto', gap: 8, marginTop: 10, padding: 10, background: 'var(--bg)', borderRadius: 6, border: '1px solid var(--border)' }}>
-                      <input type="date" className="form-input" value={int.data_inceput} onChange={e => { const u = [...formDataMedic.internari]; u[i].data_inceput = e.target.value; setFormDataMedic({...formDataMedic, internari: u}); }} />
-                      <input type="date" className="form-input" value={int.data_sfarsit} onChange={e => { const u = [...formDataMedic.internari]; u[i].data_sfarsit = e.target.value; setFormDataMedic({...formDataMedic, internari: u}); }} />
-                      <input type="text" className="form-input" placeholder="Spital" value={int.unitate} onChange={e => { const u = [...formDataMedic.internari]; u[i].unitate = e.target.value; setFormDataMedic({...formDataMedic, internari: u}); }} />
-                      <input type="text" className="form-input" placeholder="Diagnostic ieșire" value={int.diagnostic} onChange={e => { const u = [...formDataMedic.internari]; u[i].diagnostic = e.target.value; setFormDataMedic({...formDataMedic, internari: u}); }} />
-                      <button type="button" className="btn btn-sm text-danger" onClick={() => setFormDataMedic({...formDataMedic, internari: formDataMedic.internari.filter((_, idx) => idx !== i)})}>X</button>
+
+                {tipFormMedic === 'familie' ? (
+                  <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15, color: '#1e293b' }}>Scrisoare Medicală (Medic de Familie)</h3>
+                    <div className="form-group"><label>Anamneza</label><textarea className="form-textarea" rows="2" value={formMedicFam.anamneza} onChange={e => setFormMedicFam({...formMedicFam, anamneza: e.target.value})}></textarea></div>
+                    <div className="form-group"><label>Diagnostic principal</label><input type="text" className="form-input" value={formMedicFam.diagnostic_principal} onChange={e => setFormMedicFam({...formMedicFam, diagnostic_principal: e.target.value})} /></div>
+                    <div className="form-group"><label>Diagnostice secundare</label><textarea className="form-textarea" rows="2" value={formMedicFam.diagnostic_secundar} onChange={e => setFormMedicFam({...formMedicFam, diagnostic_secundar: e.target.value})}></textarea></div>
+                    
+                    <div className="form-group">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}><label>Internări în spital</label><button type="button" className="btn btn-sm btn-secondary" onClick={() => setFormMedicFam(f => ({...f, internari: [...f.internari, { data_inceput: '', data_sfarsit: '', unitate: '', diagnostic: '' }]}))}>+ Adaugă internare</button></div>
+                      {formMedicFam.internari.map((int, i) => (
+                        <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr 2fr auto', gap: 8, marginTop: 10, padding: 10, background: '#fff', borderRadius: 6, border: '1px solid var(--border)' }}>
+                          <input type="date" className="form-input" value={int.data_inceput} onChange={e => { const u = [...formMedicFam.internari]; u[i].data_inceput = e.target.value; setFormMedicFam({...formMedicFam, internari: u}); }} />
+                          <input type="date" className="form-input" value={int.data_sfarsit} onChange={e => { const u = [...formMedicFam.internari]; u[i].data_sfarsit = e.target.value; setFormMedicFam({...formMedicFam, internari: u}); }} />
+                          <input type="text" className="form-input" placeholder="Spital" value={int.unitate} onChange={e => { const u = [...formMedicFam.internari]; u[i].unitate = e.target.value; setFormMedicFam({...formMedicFam, internari: u}); }} />
+                          <input type="text" className="form-input" placeholder="Diagnostic ieșire" value={int.diagnostic} onChange={e => { const u = [...formMedicFam.internari]; u[i].diagnostic = e.target.value; setFormMedicFam({...formMedicFam, internari: u}); }} />
+                          <button type="button" className="btn btn-sm text-danger" onClick={() => setFormMedicFam({...formMedicFam, internari: formMedicFam.internari.filter((_, idx) => idx !== i)})}>X</button>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-                <div className="form-group">
-                  <label>Starea de deplasabilitate</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
-                    <label style={{ fontWeight: 'normal', display: 'flex', gap: 8 }}><input type="radio" name="depl" checked={formDataMedic.deplasabil.includes('este deplasabilă')} onChange={() => setFormDataMedic({...formDataMedic, deplasabil: 'este deplasabilă (deplasare autonomă sau sprijin din partea unei persoane / cu dispozitive)'})} /> Persoana - este deplasabilă</label>
-                    <label style={{ fontWeight: 'normal', display: 'flex', gap: 8 }}><input type="radio" name="depl" checked={formDataMedic.deplasabil.includes('nu este deplasabilă')} onChange={() => setFormDataMedic({...formDataMedic, deplasabil: 'nu este deplasabilă (nu poate fi deplasat ajutat de o persoană sau cu scaunul rulant)'})} /> Persoana - nu este deplasabilă</label>
+                    <div className="form-group">
+                      <label>Deplasabilitate</label>
+                      <select className="form-select" value={formMedicFam.deplasabil} onChange={e => setFormMedicFam({...formMedicFam, deplasabil: e.target.value})}>
+                        <option>Este deplasabilă (autonomă/cu sprijin)</option><option>Nu este deplasabilă (nici cu ajutor/scaun rulant)</option>
+                      </select>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div style={{ background: '#ecfdf5', padding: 20, borderRadius: 8, border: '1px solid #d1fae5' }}>
+                    <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15, color: '#065f46' }}>Referat Medical (Medic Specialist)</h3>
+                    <div className="form-group"><label>Diagnostic</label><textarea className="form-textarea" rows="2" value={formMedicSpec.diagnostic} onChange={e => setFormMedicSpec({...formMedicSpec, diagnostic: e.target.value})}></textarea></div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                      <div className="form-group"><label>Evoluția bolii</label><select className="form-select" value={formMedicSpec.evolutie_boala} onChange={e => setFormMedicSpec({...formMedicSpec, evolutie_boala: e.target.value})}><option>Staționară</option><option>Ameliorare</option><option>Agravare</option><option>Vindecare</option></select></div>
+                      <div className="form-group"><label>Pronostic de viață</label><select className="form-select" value={formMedicSpec.pronostic_viata} onChange={e => setFormMedicSpec({...formMedicSpec, pronostic_viata: e.target.value})}><option>Bun</option><option>Mediu</option><option>Rezervat</option></select></div>
+                      <div className="form-group"><label>Pronostic de vindecare</label><select className="form-select" value={formMedicSpec.pronostic_vindecare} onChange={e => setFormMedicSpec({...formMedicSpec, pronostic_vindecare: e.target.value})}><option>Bun</option><option>Mediu</option><option>Rezervat</option></select></div>
+                    </div>
+                    <div className="form-group"><label>Tratamente urmate</label><textarea className="form-textarea" rows="2" value={formMedicSpec.tratamente_urmate} onChange={e => setFormMedicSpec({...formMedicSpec, tratamente_urmate: e.target.value})}></textarea></div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+                      <div className="form-group"><label>Răspuns la tratament</label><select className="form-select" value={formMedicSpec.raspuns_tratament} onChange={e => setFormMedicSpec({...formMedicSpec, raspuns_tratament: e.target.value})}><option>Bun</option><option>Mediu</option><option>Nesatisfăcător</option></select></div>
+                      <div className="form-group"><label>Cooperare medic-pacient</label><select className="form-select" value={formMedicSpec.cooperare} onChange={e => setFormMedicSpec({...formMedicSpec, cooperare: e.target.value})}><option>Bună</option><option>Mediocră</option><option>Dificilă</option></select></div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
+            {/* ----- SECȚIUNE PRIMĂRIE ----- */}
             {isFunctionarPrimarie && (
               <>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20, color: 'var(--text-1)', borderTop: '1px solid var(--border)', paddingTop: 20 }}>🏡 Completare Anchetă Socială</h3>
-                <div className="form-group">
-                  <label>1. Condiții de locuit (descrierea locuinței, utilități)</label>
-                  <textarea className="form-textarea" rows="3" value={formDataPrimarie.conditii_locuit} onChange={e => setFormDataPrimarie({...formDataPrimarie, conditii_locuit: e.target.value})}></textarea>
+                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 20, color: 'var(--text-1)', borderTop: '1px solid var(--border)', paddingTop: 20 }}>🏡 Completare Anchetă Socială Oficială</h3>
+                
+                <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>I. Informații Generale</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                    <div className="form-group"><label>Ocupația</label><input type="text" className="form-input" value={formPrimarie.ocupatia} onChange={e => setPF('ocupatia', e.target.value)} /></div>
+                    <div className="form-group"><label>Studii</label><select className="form-select" value={formPrimarie.studii} onChange={e => setPF('studii', e.target.value)}><option>Primare</option><option>Gimnaziale</option><option>Medii</option><option>Superioare</option></select></div>
+                    <div className="form-group"><label>Stare civilă</label><select className="form-select" value={formPrimarie.stare_civila} onChange={e => setPF('stare_civila', e.target.value)}><option>Necăsătorit</option><option>Căsătorit</option><option>Văduv</option><option>Divorțat</option></select></div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: 15 }}>
+                    <div className="form-group"><label>Are copii?</label><select className="form-select" value={formPrimarie.copii} onChange={e => setPF('copii', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                    {formPrimarie.copii === 'Da' && <div className="form-group"><label>Detalii copii (nume, prenume, cnp, adresa)</label><input type="text" className="form-input" value={formPrimarie.detalii_copii} onChange={e => setPF('detalii_copii', e.target.value)} /></div>}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 3fr', gap: 15 }}>
+                    <div className="form-group"><label>Are Reprez. Legal?</label><select className="form-select" value={formPrimarie.reprezentant_legal} onChange={e => setPF('reprezentant_legal', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                    {formPrimarie.reprezentant_legal === 'Da' && <div className="form-group"><label>Detalii reprezentant (nume, prenume, cnp, adresa)</label><input type="text" className="form-input" value={formPrimarie.detalii_reprezentant} onChange={e => setPF('detalii_reprezentant', e.target.value)} /></div>}
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>2. Situația familială (membri de familie, sprijin)</label>
-                  <textarea className="form-textarea" rows="3" value={formDataPrimarie.situatie_familiala} onChange={e => setFormDataPrimarie({...formDataPrimarie, situatie_familiala: e.target.value})}></textarea>
+
+                <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>II. Evaluarea gradului de autonomie (Alegeți gradul de ajutor necesar)</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                    {['Igienă corporală', 'Îmbrăcat/Dezbrăcat', 'Servire și hrănire', 'Mobilizare', 'Deplasare în interior', 'Deplasare în exterior', 'Utilizare mijloace comunicare', 'Prepararea hranei', 'Activități gospodărești', 'Gestionare venituri', 'Cumpărături', 'Administrare tratament', 'Utilizare transport', 'Timp liber'].map((label, i) => {
+                      const keys = ['igiena_corporala', 'imbracat_dezbracat', 'servire_hranire', 'mobilizare', 'deplasare_interior', 'deplasare_exterior', 'comunicare_mijloace', 'preparare_hrana', 'activitati_gospodaresti', 'gestionare_venituri', 'cumparaturi', 'administrare_tratament', 'utilizare_transport', 'timp_liber'];
+                      return (
+                        <div key={i} className="form-group"><label>{label}</label><select className="form-select" value={formPrimarie[keys[i]]} onChange={e => setPF(keys[i], e.target.value)}><option>Fără ajutor</option><option>Cu ajutor parțial</option><option>Cu ajutor integral</option></select></div>
+                      )
+                    })}
+                    <div className="form-group"><label>Dispozitive deplasare</label><select className="form-select" value={formPrimarie.dispozitive_deplasare} onChange={e => setPF('dispozitive_deplasare', e.target.value)}><option>Niciunul</option><option>Baston</option><option>Scaun rulant</option><option>Cadru</option><option>Susținut de altcineva</option></select></div>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>3. Situația veniturilor realizate</label>
-                  <textarea className="form-textarea" rows="2" value={formDataPrimarie.venituri} onChange={e => setFormDataPrimarie({...formDataPrimarie, venituri: e.target.value})}></textarea>
+
+                <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>III. Evaluare senzorială și cognitivă</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                    <div className="form-group"><label>Memorie pe termen mediu</label><select className="form-select" value={formPrimarie.memorie} onChange={e => setPF('memorie', e.target.value)}><option>Își aduce aminte total</option><option>Își aduce aminte parțial</option><option>Nu își aduce aminte</option></select></div>
+                    <div className="form-group"><label>Acuitate vizuală</label><select className="form-select" value={formPrimarie.vaz} onChange={e => setPF('vaz', e.target.value)}><option>Completă cu ochelari</option><option>Completă fără ochelari</option><option>Acuitate medie</option><option>Orbire</option></select></div>
+                    <div className="form-group"><label>Comunicare</label><select className="form-select" value={formPrimarie.comunicare} onChange={e => setPF('comunicare', e.target.value)}><option>Bună</option><option>Medie</option><option>Nu poate comunica</option></select></div>
+                    <div className="form-group"><label>Orientare</label><select className="form-select" value={formPrimarie.orientare} onChange={e => setPF('orientare', e.target.value)}><option>Fără probleme</option><option>Nu se poate orienta</option></select></div>
+                    <div className="form-group"><label>Comportament</label><select className="form-select" value={formPrimarie.comportament} onChange={e => setPF('comportament', e.target.value)}><option>Bun</option><option>Degradat</option></select></div>
+                  </div>
                 </div>
-                <div className="form-group">
-                  <label>4. Concluzii și Recomandări</label>
-                  <textarea className="form-textarea" rows="3" value={formDataPrimarie.recomandare} onChange={e => setFormDataPrimarie({...formDataPrimarie, recomandare: e.target.value})}></textarea>
+
+                <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>IV. Locuință și Familie</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 15 }}>
+                    <div className="form-group"><label>Locuință</label><select className="form-select" value={formPrimarie.tip_locuinta} onChange={e => setPF('tip_locuinta', e.target.value)}><option>Casă</option><option>Apartament</option></select></div>
+                    <div className="form-group"><label>Nr. Camere</label><input type="number" className="form-input" value={formPrimarie.nr_camere} onChange={e => setPF('nr_camere', e.target.value)} /></div>
+                    <div className="form-group"><label>Încălzire</label><select className="form-select" value={formPrimarie.incalzire} onChange={e => setPF('incalzire', e.target.value)}><option>Fără</option><option>Centrală</option><option>Sobă</option></select></div>
+                    <div className="form-group"><label>Apă curentă</label><select className="form-select" value={formPrimarie.apa_curenta} onChange={e => setPF('apa_curenta', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                  </div>
+                  <div className="form-group"><label>Alte dotări ale locuinței</label><input type="text" className="form-input" value={formPrimarie.dotari_locuinta} onChange={e => setPF('dotari_locuinta', e.target.value)} /></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                    <div className="form-group"><label>Trăiește</label><select className="form-select" value={formPrimarie.coabitare} onChange={e => setPF('coabitare', e.target.value)}><option>Singur</option><option>Cu familia</option></select></div>
+                    <div className="form-group"><label>Coabitant bolnav?</label><select className="form-select" value={formPrimarie.coabitant_bolnav} onChange={e => setPF('coabitant_bolnav', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                    <div className="form-group"><label>Coabitant cu adicții?</label><select className="form-select" value={formPrimarie.coabitant_adictii} onChange={e => setPF('coabitant_adictii', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                    <div className="form-group"><label>Relația cu familia</label><select className="form-select" value={formPrimarie.relatie_familie} onChange={e => setPF('relatie_familie', e.target.value)}><option>Bună</option><option>Cu probleme</option></select></div>
+                    <div className="form-group"><label>Risc neglijare?</label><select className="form-select" value={formPrimarie.risc_neglijare} onChange={e => setPF('risc_neglijare', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                    <div className="form-group"><label>Risc abuz?</label><select className="form-select" value={formPrimarie.risc_abuz} onChange={e => setPF('risc_abuz', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                  </div>
+                  <div className="form-group"><label>Persoană de contact urgență (nume, cnp, tel, rudenie)</label><input type="text" className="form-input" value={formPrimarie.pers_contact} onChange={e => setPF('pers_contact', e.target.value)} /></div>
+                </div>
+
+                <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
+                  <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>V. Concluzii</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15, marginBottom: 15 }}>
+                    <div className="form-group"><label>Are prieteni?</label><select className="form-select" value={formPrimarie.are_prieteni} onChange={e => setPF('are_prieteni', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                    <div className="form-group"><label>Relațiile de prietenie</label><select className="form-select" value={formPrimarie.relatii_prietenie} onChange={e => setPF('relatii_prietenie', e.target.value)}><option>Permanente</option><option>Ocazionale</option></select></div>
+                    <div className="form-group"><label>Participă în comunitate?</label><select className="form-select" value={formPrimarie.participare_comunitate} onChange={e => setPF('participare_comunitate', e.target.value)}><option>Da</option><option>Nu</option></select></div>
+                  </div>
+                  <div className="form-group"><label>Concluzii generale / Recomandări finale</label><textarea className="form-textarea" rows="3" value={formPrimarie.concluzii} onChange={e => setPF('concluzii', e.target.value)}></textarea></div>
                 </div>
               </>
             )}
@@ -470,7 +596,7 @@ export default function DosarDetaliu() {
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20, marginTop: 20, textAlign: 'right' }}>
               <button className="btn btn-primary" onClick={isMedic ? finalizeazaScrisoare : finalizeazaAnchetaPrimarie} disabled={savingStatus}>
-                {savingStatus ? 'Se generează...' : `✓ Finalizare ${isMedic ? 'Scrisoare' : 'Anchetă'}`}
+                {savingStatus ? 'Se generează...' : `✓ Finalizare și Generare PDF`}
               </button>
             </div>
           </div>
