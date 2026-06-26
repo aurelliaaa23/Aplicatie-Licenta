@@ -32,6 +32,7 @@ export default function Dosare() {
   const isMedic        = rol === 'medic';
   const isReprezentant = rol === 'reprezentant_școală';
   const isPrimarie     = rol === 'funcționar_primărie';
+  const isPolitie      = rol === 'funcționar_poliție';
   const isColaborator  = isMedic || isReprezentant;
 
   useEffect(() => {
@@ -45,7 +46,9 @@ export default function Dosare() {
       api.get('/dosare')
         .then(({ data }) => {
            if (isPrimarie) {
-              setDosare(data.filter(d => d.tip === 'certificat_handicap'));
+              setDosare(data.filter(d => ['certificat_handicap', 'adoptie'].includes(d.tip)));
+           } else if (isPolitie) {
+              setDosare(data.filter(d => d.tip === 'adoptie'));
            } else {
               setDosare(data);
            }

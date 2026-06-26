@@ -55,11 +55,20 @@ export default function DosarNou() {
     cetateanUe: false, tipFamilie: 'monoparentala', cnpSot: '', numeSot: ''
   });
 
+  const [dateCopil, setDateCopil] = useState({
+    nume: '', prenume: '', cnp: ''
+  });
+
   const [dateAlocatie, setDateAlocatie] = useState({
     acelasiJudet: true, judet: '', tipCadru: '', cadruDidacticId: ''
   });
 
   const [dateIndemnizatie, setDateIndemnizatie] = useState({ beneficiar: 'titular' });
+
+  // STATE NOU: Adopție
+  const [dateAdoptie, setDateAdoptie] = useState({
+    gen_copil: 'indiferent', greu_adoptabil: 'Nu',
+  });
 
   const [docIdentitate, setDocIdentitate] = useState(null);
   const [docVenit, setDocVenit] = useState(null);
@@ -70,21 +79,27 @@ export default function DosarNou() {
   const [docAdevMunca, setDocAdevMunca] = useState(null);
 
   const [medicFam, setMedicFam] = useState({ acelasiJudet: true, judet: '', medic: '' });
+  const [medicFamSot, setMedicFamSot] = useState({ acelasiJudet: true, judet: '', medic: '' }); // Medic pt sotie/sot in caz de adoptie
   const [referate, setReferate] = useState([]);
 
   const isHandicap = tip === 'certificat_handicap';
   const isCopil = tip === 'alocatie' || tip === 'indemnizatie';
+  const isAdoptie = tip === 'adoptie';
 
   let activeSteps = ['Tip dosar', 'Informații', 'Documente', 'Semnătură', 'Confirmare'];
   if (isHandicap) activeSteps = ['Tip dosar', 'Formular Cerere', 'Informații', 'Documente', 'Semnătură', 'Confirmare'];
-  if (isCopil) activeSteps = ['Tip dosar', 'Date Identificare & Familie', tip === 'alocatie' ? 'Detalii Școală' : 'Detalii Indemnizație', 'Documente', 'Semnătură', 'Confirmare'];
+  if (isCopil) activeSteps = ['Tip dosar', 'Date Identificare Copil & Familie', tip === 'alocatie' ? 'Detalii Școală' : 'Detalii Indemnizație', 'Documente', 'Semnătură', 'Confirmare'];
+  if (isAdoptie) activeSteps = ['Tip dosar', 'Date Titular & Familie', 'Criterii & Medici', 'Documente', 'Semnături', 'Confirmare'];
 
-  const canvasRef    = useRef(null);
-  const signPadRef   = useRef(null);
-  const fileInputRef = useRef(null);
+  const canvasRef      = useRef(null);
+  const signPadRef     = useRef(null);
+  const canvasSotRef   = useRef(null);
+  const signPadSotRef  = useRef(null);
+  const fileInputRef   = useRef(null);
 
   useEffect(() => {
-    if (isHandicap) {
+    // Aducem medicii din BD atât pt Handicap cât și pt Adopție
+    if (isHandicap || isAdoptie) {
       api.get('/auth/medici')
          .then(res => setMediciDB(res.data))
          .catch(err => console.error("Eroare la aducerea medicilor:", err));
@@ -94,11 +109,18 @@ export default function DosarNou() {
          .then(res => setCadreDidactice(res.data))
          .catch(err => console.error("Eroare cadre didactice:", err));
     }
-  }, [isHandicap, isCopil, tip]);
+  }, [isHandicap, isCopil, isAdoptie, tip]);
 
+  // Filtrare Medici Titular
   const judetMedicFam = medicFam.acelasiJudet ? utilizator?.judet : medicFam.judet;
   const mediciFamilie = judetMedicFam
     ? mediciDB.filter(m => (m.specialitate || '').toLowerCase().includes('familie') && (m.judet || '') === judetMedicFam)
+    : [];
+
+  // Filtrare Medici Soț/Soție
+  const judetMedicFamSot = medicFamSot.acelasiJudet ? utilizator?.judet : medicFamSot.judet;
+  const mediciFamilieSot = judetMedicFamSot
+    ? mediciDB.filter(m => (m.specialitate || '').toLowerCase().includes('familie') && (m.judet || '') === judetMedicFamSot)
     : [];
 
   const getMediciSpecialisti = (judet, spec) => {
@@ -135,27 +157,40 @@ export default function DosarNou() {
   };
 
   useEffect(() => {
-    if (step === 4 && canvasRef.current && !signPadRef.current) {
-      const pad = new SignaturePad(canvasRef.current, {
-        backgroundColor: 'rgb(255, 255, 255)', penColor: '#1e2f5c',
-        minWidth: 1.5, maxWidth: 3,
-      });
-      signPadRef.current = pad;
+    if (step === 4) {
+      if (canvasRef.current && !signPadRef.current) {
+        const pad = new SignaturePad(canvasRef.current, { backgroundColor: 'rgb(255, 255, 255)', penColor: '#1e2f5c', minWidth: 1.5, maxWidth: 3 });
+        signPadRef.current = pad;
+      }
+      
+      // Inițializare pad suplimentar pentru partener (doar la adopție integrală)
+      if (isAdoptie && dateFamilie.tipFamilie === 'integrala' && canvasSotRef.current && !signPadSotRef.current) {
+        const padSot = new SignaturePad(canvasSotRef.current, { backgroundColor: 'rgb(255, 255, 255)', penColor: '#1e2f5c', minWidth: 1.5, maxWidth: 3 });
+        signPadSotRef.current = padSot;
+      }
+      
       resizeCanvas();
     }
-  }, [step]);
+  }, [step, isAdoptie, dateFamilie.tipFamilie]);
 
   const resizeCanvas = () => {
-    if (!canvasRef.current) return;
     const ratio = Math.max(window.devicePixelRatio || 1, 1);
-    const canvas = canvasRef.current;
-    canvas.width  = canvas.offsetWidth  * ratio;
-    canvas.height = canvas.offsetHeight * ratio;
-    canvas.getContext('2d').scale(ratio, ratio);
-    if (signPadRef.current) signPadRef.current.clear();
+    if (canvasRef.current) {
+      canvasRef.current.width  = canvasRef.current.offsetWidth  * ratio;
+      canvasRef.current.height = canvasRef.current.offsetHeight * ratio;
+      canvasRef.current.getContext('2d').scale(ratio, ratio);
+      if (signPadRef.current) signPadRef.current.clear();
+    }
+    if (canvasSotRef.current) {
+      canvasSotRef.current.width  = canvasSotRef.current.offsetWidth  * ratio;
+      canvasSotRef.current.height = canvasSotRef.current.offsetHeight * ratio;
+      canvasSotRef.current.getContext('2d').scale(ratio, ratio);
+      if (signPadSotRef.current) signPadSotRef.current.clear();
+    }
   };
 
   const clearSignature = () => signPadRef.current?.clear();
+  const clearSignatureSot = () => signPadSotRef.current?.clear();
 
   const adaugaReferat = () => setReferate([...referate, { id: Date.now(), specialitate: '', judet: '', medic: '' }]);
   const updateReferat = (id, key, value) => setReferate(referate.map(r => r.id === id ? { ...r, [key]: value } : r));
@@ -164,13 +199,14 @@ export default function DosarNou() {
   const nextStep = async () => {
     if (step === 0) {
       if (!tip) return toast.warning('Selectați tipul dosarului');
-      setStep(isHandicap || isCopil ? 1 : 2);
+      setStep(isHandicap || isCopil || isAdoptie ? 1 : 2);
     } 
     else if (step === 1) {
       if (!dateCerere.serie_ci || !dateCerere.numar_ci || !dateCerere.strada) return toast.warning('Vă rugăm completați seria CI, numărul CI și strada.');
       if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) return toast.warning('Bifați ambele acorduri generale (corectitudine și GDPR).');
       
-      if (isCopil) {
+      if (isCopil || isAdoptie) {
+        if (isCopil && (!dateCopil.nume || !dateCopil.prenume || dateCopil.cnp.length !== 13)) return toast.warning('Vă rugăm să completați datele copilului corect (CNP din 13 cifre).');
         if (!dateFamilie.cetateanUe) return toast.warning('Bifați confirmarea că sunteți cetățean UE.');
         if (dateFamilie.tipFamilie === 'integrala' && dateFamilie.cnpSot.length !== 13) return toast.warning('CNP-ul soțului trebuie să fie valid și complet (13 cifre).');
       }
@@ -185,11 +221,14 @@ export default function DosarNou() {
     } 
     else if (step === 2) {
       if (isCopil && tip === 'alocatie') {
-          // Aici a fost corectată validarea - se verifică doar câmpurile rămase
           if (!dateAlocatie.acelasiJudet && !dateAlocatie.judet) return toast.warning('Selectați județul instituției!');
           if (!dateAlocatie.tipCadru || !dateAlocatie.cadruDidacticId) return toast.warning('Completați toate informațiile despre școală!');
           setStep(3);
       } else if (isCopil && tip === 'indemnizatie') {
+          setStep(3);
+      } else if (isAdoptie) {
+          if (!medicFam.medic) return toast.warning('Selectați medicul de familie pentru titular!');
+          if (dateFamilie.tipFamilie === 'integrala' && !medicFamSot.medic) return toast.warning('Selectați medicul de familie pentru soț/soție!');
           setStep(3);
       } else {
           if (!descriere.trim()) return toast.warning('Descrieți situația dvs.');
@@ -202,12 +241,12 @@ export default function DosarNou() {
   };
 
   const prevStep = () => {
-    if (step === 2) setStep(isHandicap || isCopil ? 1 : 0);
+    if (step === 2) setStep(isHandicap || isCopil || isAdoptie ? 1 : 0);
     else setStep((s) => s - 1);
   };
 
   let uiStepIndex = step;
-  if (!isHandicap && !isCopil && step >= 2) uiStepIndex = step - 1;
+  if (!isHandicap && !isCopil && !isAdoptie && step >= 2) uiStepIndex = step - 1;
 
   const BoxIncarcare = ({ label, file, setFile }) => (
     <div style={{ marginBottom: 16 }}>
@@ -238,9 +277,17 @@ export default function DosarNou() {
   const creeazaDosar = async () => {
     setLoading(true);
     try {
-      const { data: dosar } = await api.post('/dosare', { tip, descriere: isCopil ? 'Dosar pentru acordare beneficiu social copii' : descriere, prioritate });
+      let payloadDescriere = descriere;
+      if (isCopil) payloadDescriere = `[Date Copil: ${dateCopil.nume} ${dateCopil.prenume}, CNP: ${dateCopil.cnp}]\n\n${descriere || 'Dosar pentru acordare beneficiu social copii'}`;
+      if (isAdoptie) {
+  const partenerStr = dateFamilie.tipFamilie === 'integrala' ? `[Partener: ${dateFamilie.numeSot}, CNP: ${dateFamilie.cnpSot}]\n` : '';
+  payloadDescriere = `Dosar de adopție națională.\n${partenerStr}\n${descriere}`;
+}
+
+      const { data: dosar } = await api.post('/dosare', { tip, descriere: payloadDescriere, prioritate });
       setDosarId(dosar.id);
       
+      // Upload documente în funcție de dosar
       if (isHandicap) {
         await uploadSpecificFile(docIdentitate, dosar.id, 'carte_identitate');
         await uploadSpecificFile(docVenit, dosar.id, 'alte');
@@ -250,16 +297,24 @@ export default function DosarNou() {
         await uploadSpecificFile(docExtrasCont, dosar.id, 'extras_cont');
         if (dateFamilie.tipFamilie === 'integrala' && docCertCasatorie) await uploadSpecificFile(docCertCasatorie, dosar.id, 'cert_casatorie');
         if (tip === 'indemnizatie' && docAdevMunca) await uploadSpecificFile(docAdevMunca, dosar.id, 'adev_munca');
+      } else if (isAdoptie) {
+        await uploadSpecificFile(docCIParinti, dosar.id, 'ci_parinti');
+        if (dateFamilie.tipFamilie === 'integrala') {
+           await uploadSpecificFile(docCertCasatorie, dosar.id, 'cert_casatorie');
+        }
       } else {
         for (let i = 0; i < fisiere.length; i++) await uploadSpecificFile(fisiere[i], dosar.id, 'alte');
       }
 
-      let sigData = null;
-      if (signPadRef.current && !signPadRef.current.isEmpty()) {
-        sigData = signPadRef.current.toDataURL('image/png');
+      // Procesare Semnături
+      let sigData = signPadRef.current && !signPadRef.current.isEmpty() ? signPadRef.current.toDataURL('image/png') : null;
+      let sigSotData = (dateFamilie.tipFamilie === 'integrala' && signPadSotRef.current && !signPadSotRef.current.isEmpty()) ? signPadSotRef.current.toDataURL('image/png') : null;
+
+      if (sigData) {
         try { await api.post('/documente/semnatura', { dosar_id: dosar.id, semnatura_base64: sigData }); } catch (e) { console.warn("Eroare la semnatură.", e); }
       }
 
+      // Generări automate și notificări medici
       if (isHandicap) {
         try {
           await api.post('/documente/genereaza-cerere-handicap', { dosar_id: dosar.id, date_cerere: dateCerere, semnatura_base64: sigData });
@@ -273,23 +328,41 @@ export default function DosarNou() {
           try { await api.post(`/dosare/${dosar.id}/notifica-medici`, { medici: mediciDeNotificat }); } catch (err) {}
         }
       }
-
       else if (isCopil) {
         try {
           await api.post('/documente/genereaza-cerere-copil', { 
-            dosar_id: dosar.id, 
-            tip_dosar: tip,
-            date_cerere: dateCerere, 
-            date_familie: dateFamilie,
-            date_indemnizatie: dateIndemnizatie,
-            semnatura_base64: sigData 
+            dosar_id: dosar.id, tip_dosar: tip, date_cerere: dateCerere, 
+            date_familie: dateFamilie, date_indemnizatie: dateIndemnizatie,
+            date_copil: dateCopil, semnatura_base64: sigData 
           });
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (err) { console.error("Eroare la generarea cererii", err); }
       }
+      else if (isAdoptie) {
+         try {
+           await api.post('/documente/genereaza-cerere-adoptie', {
+              dosar_id: dosar.id, date_cerere: dateCerere, date_adoptie: dateAdoptie, 
+              date_familie: dateFamilie, semnatura_base64: sigData, semnatura_sot_base64: sigSotData
+           });
+           await new Promise(resolve => setTimeout(resolve, 500));
+         } catch (err) { console.error("Eroare la generare cerere adoptie", err); }
+         
+         const mediciDeNotificat = [];
+         if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Titular)' });
+         if (dateFamilie.tipFamilie === 'integrala' && medicFamSot.medic) {
+            mediciDeNotificat.push({ id: medicFamSot.medic, tip: 'Adeverință medicală adopție (Soț/Soție)' });
+         }
+         
+         if (mediciDeNotificat.length > 0) {
+           try { await api.post(`/dosare/${dosar.id}/notifica-medici`, { medici: mediciDeNotificat }); } catch (err) {}
+         }
+      }
 
       if (isCopil && tip === 'alocatie' && dateAlocatie.cadruDidacticId) {
-          try { await api.post(`/dosare/${dosar.id}/notifica-reprezentant`, { reprezentant_id: dateAlocatie.cadruDidacticId }); } catch (e) { console.warn(e); }
+          try { await api.post(`/dosare/${dosar.id}/notifica-reprezentant`, { 
+              reprezentant_id: dateAlocatie.cadruDidacticId,
+              date_copil: dateCopil
+          }); } catch (e) { console.warn(e); }
       }
 
       setStep(5);
@@ -351,7 +424,7 @@ export default function DosarNou() {
           )}
 
           {/* PASUL 1: Formular Comun */}
-          {step === 1 && (isHandicap || isCopil) && (
+          {step === 1 && (isHandicap || isCopil || isAdoptie) && (
             <>
               <div className="card-header">
                 <div>
@@ -424,6 +497,26 @@ export default function DosarNou() {
 
               {isCopil && (
                   <div style={{ background: 'var(--info-bg)', padding: 16, border: '1px solid #bae6fd', borderRadius: 8, marginTop: 24, marginBottom: 24 }}>
+                      <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Informații Copil</h4>
+                      <div className="form-row">
+                          <div className="form-group">
+                              <label>Nume Copil *</label>
+                              <input type="text" className="form-input" placeholder="Nume" value={dateCopil.nume} onChange={e => setDateCopil({...dateCopil, nume: e.target.value})} />
+                          </div>
+                          <div className="form-group">
+                              <label>Prenume Copil *</label>
+                              <input type="text" className="form-input" placeholder="Prenume" value={dateCopil.prenume} onChange={e => setDateCopil({...dateCopil, prenume: e.target.value})} />
+                          </div>
+                      </div>
+                      <div className="form-group">
+                          <label>CNP Copil *</label>
+                          <input type="text" className="form-input" maxLength={13} placeholder="Introduceți CNP copil" value={dateCopil.cnp} onChange={e => setDateCopil({...dateCopil, cnp: e.target.value.replace(/\D/g, '')})} />
+                      </div>
+                  </div>
+              )}
+
+              {(isCopil || isAdoptie) && (
+                  <div style={{ background: 'var(--info-bg)', padding: 16, border: '1px solid #bae6fd', borderRadius: 8, marginTop: 24, marginBottom: 24 }}>
                       <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Informații Familie</h4>
                       <div className="form-group">
                           <label>Tipul Familiei dvs. *</label>
@@ -461,7 +554,7 @@ export default function DosarNou() {
                 </label>
               </div>
 
-              {isCopil && (
+              {(isCopil || isAdoptie) && (
                   <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
                           <input type="checkbox" style={{ width: 18, height: 18 }} checked={dateFamilie.cetateanUe} onChange={(e) => setDateFamilie({...dateFamilie, cetateanUe: e.target.checked})} />
@@ -477,8 +570,8 @@ export default function DosarNou() {
             </>
           )}
 
-          {/* PASUL 2: INFORMATII / DETALII ALOCATIE / DETALII INDEMNIZATIE */}
-          {step === 2 && !isCopil && (
+          {/* PASUL 2: INFORMATII / DETALII ALOCATIE / DETALII INDEMNIZATIE / ADOPTIE */}
+          {step === 2 && !isCopil && !isAdoptie && (
             <>
               <div className="card-header">
                 <div>
@@ -503,6 +596,98 @@ export default function DosarNou() {
                   value={descriere} onChange={(e) => setDescriere(e.target.value)} 
                   style={{ minHeight: 140 }} />
               </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+                <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
+              </div>
+            </>
+          )}
+
+          {step === 2 && isAdoptie && (
+            <>
+              <div className="card-header">
+                <div>
+                  <div className="card-title">Criterii Adopție & Medici de Familie</div>
+                  <div className="card-subtitle">Selectați preferințele privind copilul și medicii care vor emite certificatele medicale.</div>
+                </div>
+              </div>
+              
+              <div className="form-row">
+                 <div className="form-group">
+                     <label>Genul copilului dorit *</label>
+                     <select className="form-select" value={dateAdoptie.gen_copil} onChange={e => setDateAdoptie({...dateAdoptie, gen_copil: e.target.value})}>
+                         <option value="indiferent">Indiferent (Băiat / Fată)</option>
+                         <option value="baiat">Băiat</option>
+                         <option value="fata">Fată</option>
+                     </select>
+                 </div>
+                 <div className="form-group">
+                     <label>Disponibilitate copil greu adoptabil? *</label>
+                     <select className="form-select" value={dateAdoptie.greu_adoptabil} onChange={e => setDateAdoptie({...dateAdoptie, greu_adoptabil: e.target.value})}>
+                         <option value="Nu">Nu</option>
+                         <option value="Da">Da (Vârstă &gt;4 ani, afecțiuni, frați)</option>
+                     </select>
+                 </div>
+              </div>
+
+              <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginTop: 16 }}>
+                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Solicitare Certificat Medical Adopție (Pentru dvs.)</h4>
+                 <div className="form-group">
+                   <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
+                     <input type="checkbox" style={{ width: 18, height: 18 }} checked={medicFam.acelasiJudet} onChange={(e) => setMedicFam({...medicFam, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', medic: ''})} />
+                     <span style={{ fontSize: 13.5 }}>Medicul dvs. de familie este din același județ cu domiciliul dvs.?</span>
+                   </label>
+                 </div>
+                 <div className="form-row">
+                   {!medicFam.acelasiJudet && (
+                     <div className="form-group">
+                       <label>Selectați Județul medicului</label>
+                       <select className="form-input" value={medicFam.judet} onChange={(e) => setMedicFam({...medicFam, judet: e.target.value, medic: ''})}>
+                         <option value="">Alege județul...</option>
+                         {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
+                       </select>
+                     </div>
+                   )}
+                   <div className="form-group" style={{ flex: 2 }}>
+                     <label>Medic Familie (Titular) *</label>
+                     <select className="form-input" value={medicFam.medic} onChange={(e) => setMedicFam({...medicFam, medic: e.target.value})} disabled={!judetMedicFam}>
+                       <option value="">{judetMedicFam ? (mediciFamilie.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit în acest județ') : 'Alegeți județul'}</option>
+                       {mediciFamilie.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
+                     </select>
+                   </div>
+                 </div>
+              </div>
+
+              {dateFamilie.tipFamilie === 'integrala' && (
+                  <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginTop: 16 }}>
+                     <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Solicitare Certificat Medical Adopție (Pentru soț/soție)</h4>
+                     <div className="form-group">
+                       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
+                         <input type="checkbox" style={{ width: 18, height: 18 }} checked={medicFamSot.acelasiJudet} onChange={(e) => setMedicFamSot({...medicFamSot, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', medic: ''})} />
+                         <span style={{ fontSize: 13.5 }}>Medicul de familie al soțului/soției este din același județ?</span>
+                       </label>
+                     </div>
+                     <div className="form-row">
+                       {!medicFamSot.acelasiJudet && (
+                         <div className="form-group">
+                           <label>Selectați Județul medicului</label>
+                           <select className="form-input" value={medicFamSot.judet} onChange={(e) => setMedicFamSot({...medicFamSot, judet: e.target.value, medic: ''})}>
+                             <option value="">Alege județul...</option>
+                             {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
+                           </select>
+                         </div>
+                       )}
+                       <div className="form-group" style={{ flex: 2 }}>
+                         <label>Medic Familie (Soț/Soție) *</label>
+                         <select className="form-input" value={medicFamSot.medic} onChange={(e) => setMedicFamSot({...medicFamSot, medic: e.target.value})} disabled={!judetMedicFamSot}>
+                           <option value="">{judetMedicFamSot ? (mediciFamilieSot.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit în acest județ') : 'Alegeți județul'}</option>
+                           {mediciFamilieSot.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
+                         </select>
+                       </div>
+                     </div>
+                  </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
                 <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
                 <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
@@ -708,7 +893,28 @@ export default function DosarNou() {
                    <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
                </div>
             </>
-          ) : step === 3 && !isHandicap && !isCopil ? (
+          ) : step === 3 && isAdoptie ? (
+            <>
+               <div className="card-header" style={{ marginBottom: 24 }}>
+                   <div>
+                       <div className="card-title">Încărcare Documente Suport Adopție</div>
+                       <div className="card-subtitle">Vă rugăm atașați copiile după documentele de identitate.</div>
+                   </div>
+               </div>
+               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8 }}>
+                   <BoxIncarcare label="Copie Carte de Identitate (Toți membrii familiei) *" file={docCIParinti} setFile={setDocCIParinti} />
+
+                   {dateFamilie.tipFamilie === 'integrala' && (
+                       <BoxIncarcare label="Copie Certificat de Căsătorie *" file={docCertCasatorie} setFile={setDocCertCasatorie} />
+                   )}
+               </div>
+
+               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
+                   <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
+                   <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
+               </div>
+            </>
+          ) : step === 3 && !isHandicap && !isCopil && !isAdoptie ? (
             <>
               <div className="card-header">
                 <div>
@@ -751,13 +957,38 @@ export default function DosarNou() {
                   <div className="card-subtitle">Semnați în câmpul de mai jos pentru a certifica autenticitatea cererii</div>
                 </div>
               </div>
-              <div className="sign-wrap">
-                <canvas ref={canvasRef} style={{ width: '100%', height: 200, touchAction: 'none' }} />
-                <div className="sign-actions">
-                  <span style={{ fontSize: 12, color: 'var(--text-3)', marginRight: 'auto' }}>Semnați cu mouse-ul sau degetul (touchscreen)</span>
-                  <button className="btn btn-ghost btn-sm" onClick={clearSignature}>Șterge</button>
+              
+              {isAdoptie && dateFamilie.tipFamilie === 'integrala' ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                   <div>
+                      <label style={{ display: 'block', marginBottom: 10, fontWeight: 600 }}>Semnătură Titular</label>
+                      <div className="sign-wrap">
+                         <canvas ref={canvasRef} style={{ width: '100%', height: 200, touchAction: 'none' }} />
+                         <div className="sign-actions">
+                            <button className="btn btn-ghost btn-sm" onClick={clearSignature}>Șterge</button>
+                         </div>
+                      </div>
+                   </div>
+                   <div>
+                      <label style={{ display: 'block', marginBottom: 10, fontWeight: 600 }}>Semnătură Soț/Soție</label>
+                      <div className="sign-wrap">
+                         <canvas ref={canvasSotRef} style={{ width: '100%', height: 200, touchAction: 'none' }} />
+                         <div className="sign-actions">
+                            <button className="btn btn-ghost btn-sm" onClick={clearSignatureSot}>Șterge</button>
+                         </div>
+                      </div>
+                   </div>
                 </div>
-              </div>
+              ) : (
+                <div className="sign-wrap">
+                  <canvas ref={canvasRef} style={{ width: '100%', height: 200, touchAction: 'none' }} />
+                  <div className="sign-actions">
+                    <span style={{ fontSize: 12, color: 'var(--text-3)', marginRight: 'auto' }}>Semnați cu mouse-ul sau degetul (touchscreen)</span>
+                    <button className="btn btn-ghost btn-sm" onClick={clearSignature}>Șterge</button>
+                  </div>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
                 <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
                 <button className="btn btn-primary" onClick={() => setStep(5)}>Continuare →</button>

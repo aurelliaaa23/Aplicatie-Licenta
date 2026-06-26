@@ -136,24 +136,21 @@ router.post('/genereaza-cerere-handicap', verificaToken, async (req, res) => {
   }
 });
 
-// ── POST /api/documente/genereaza-cerere-copil (Ruta MUTATĂ corect) ──────────
+// ── POST /api/documente/genereaza-cerere-copil ───────────────────────────────
 router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
   try {
-    const { dosar_id, tip_dosar, date_cerere, date_familie, date_indemnizatie, semnatura_base64 } = req.body;
+    const { dosar_id, tip_dosar, date_cerere, date_familie, date_indemnizatie, date_copil, semnatura_base64 } = req.body;
     
-    // Aducem Dosarul și Cetățeanul
     const dosar = await Dosar.findByPk(dosar_id);
     if (!dosar) return res.status(404).json({ eroare: 'Dosarul nu a fost găsit' });
     const cetatean = await Utilizator.findByPk(dosar.cetatean_id);
 
-    // Alegem șablonul pe baza tipului
     const numeSablon = tip_dosar === 'alocatie' ? 'Cerere_Alocatie_Stat' : 'Cerere_Indemnizatie';
     const sablon = await SablonDocument.findOne({ where: { nume_sablon: numeSablon } });
     if (!sablon) return res.status(404).json({ eroare: 'Șablonul nu există în baza de date' });
 
     let html = sablon.continut_html;
 
-    // Înlocuim variabilele comune
     html = html.replace(/{{NUME}}/g, cetatean.nume);
     html = html.replace(/{{PRENUME}}/g, cetatean.prenume);
     html = html.replace(/{{CNP}}/g, cetatean.cnp || '-');
@@ -164,20 +161,29 @@ router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
     html = html.replace(/{{EMAIL}}/g, cetatean.email || '-');
     html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
     html = html.replace(/{{SEMNATURA_BASE64}}/g, semnatura_base64 || '');
+    
+    html = html.replace(/{{NUME_COPIL}}/g, date_copil.nume || '-');
+    html = html.replace(/{{PRENUME_COPIL}}/g, date_copil.prenume || '-');
+    html = html.replace(/{{CNP_COPIL}}/g, date_copil.cnp || '-');
 
-    // Variabile specifice Alocației
     if (tip_dosar === 'alocatie') {
       html = html.replace(/{{SERIE_CI}}/g, date_cerere.serie_ci);
       html = html.replace(/{{NUMAR_CI}}/g, date_cerere.numar_ci);
+      
+      let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
+      let cnpSot = date_familie.tipFamilie === 'integrala' && date_familie.cnpSot ? date_familie.cnpSot : '-';
+      html = html.replace(/{{NUME_SOT}}/g, numeSot);
+      html = html.replace(/{{CNP_SOT}}/g, cnpSot);
     }
 
-    // Variabile specifice Indemnizației
     if (tip_dosar === 'indemnizatie') {
       let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
+      let cnpSot = date_familie.tipFamilie === 'integrala' && date_familie.cnpSot ? date_familie.cnpSot : '-';
       let beneficiar = date_indemnizatie.beneficiar === 'titular' ? `${cetatean.nume} ${cetatean.prenume}` : numeSot;
       
       html = html.replace(/{{BENEFICIAR}}/g, beneficiar);
       html = html.replace(/{{NUME_SOT}}/g, numeSot);
+      html = html.replace(/{{CNP_SOT}}/g, cnpSot);
     }
 
     const uploadDir = path.join(__dirname, '../uploads', String(cetatean.id));
@@ -208,12 +214,69 @@ router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
   }
 });
 
-router.post('/genereaza-scrisoare-medicala', verificaToken, async (req, res) => {
-  res.status(200).send("Folosiți ruta din dosare.routes.js");
-});
+// ... (Adaugă acest block sub ruta de generare a cererii copil)
 
-router.post('/genereaza-referat-specialist', verificaToken, async (req, res) => {
-   res.status(200).send("Folosiți ruta din dosare.routes.js");
+// ── POST /api/documente/genereaza-cerere-adoptie ────────────────────────────
+
+// ── POST /api/documente/genereaza-cerere-adoptie ────────────────────────────
+router.post('/genereaza-cerere-adoptie', verificaToken, async (req, res) => {
+  try {
+    const { dosar_id, date_cerere, date_adoptie, date_familie, semnatura_base64, semnatura_sot_base64 } = req.body;
+    
+    const dosar = await Dosar.findByPk(dosar_id);
+    if (!dosar) return res.status(404).json({ eroare: 'Dosarul nu a fost găsit' });
+    const cetatean = await Utilizator.findByPk(dosar.cetatean_id);
+
+    const sablon = await SablonDocument.findOne({ where: { nume_sablon: 'Cerere_Adoptie' } });
+    if (!sablon) return res.status(404).json({ eroare: 'Șablonul nu există' });
+
+    let html = sablon.continut_html;
+    html = html.replace(/{{NUME}}/g, cetatean.nume);
+    html = html.replace(/{{PRENUME}}/g, cetatean.prenume);
+    html = html.replace(/{{CNP}}/g, cetatean.cnp || '-');
+    html = html.replace(/{{JUDET}}/g, cetatean.judet || '-');
+    html = html.replace(/{{ORAS}}/g, cetatean.oras || '-');
+    html = html.replace(/{{STRADA}}/g, date_cerere.strada || '-');
+    html = html.replace(/{{TELEFON}}/g, cetatean.telefon || '-');
+
+    let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
+    let cnpSot = date_familie.tipFamilie === 'integrala' && date_familie.cnpSot ? date_familie.cnpSot : '-';
+    
+    html = html.replace(/{{NUME_SOT}}/g, numeSot);
+    html = html.replace(/{{CNP_SOT}}/g, cnpSot);
+    html = html.replace(/{{GEN_COPIL}}/g, date_adoptie.gen_copil === 'indiferent' ? 'Indiferent (Băiat/Fată)' : date_adoptie.gen_copil);
+    html = html.replace(/{{GREU_ADOPTABIL}}/g, date_adoptie.greu_adoptabil === 'Da' ? 'Da (Avem disponibilitate)' : 'Nu (Doar copii din profilul standard)');
+    html = html.replace(/{{SEMNATURA_BASE64}}/g, semnatura_base64 || '');
+    
+    // Generăm un div alb gol ca imagine dacă nu există semnătura soțului, pentru a nu lăsa imaginea spartă în PDF
+    const emptyImage = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+    html = html.replace(/{{SEMNATURA_SOT_BASE64}}/g, semnatura_sot_base64 || emptyImage);
+    html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
+
+    const uploadDir = path.join(__dirname, '../uploads', String(cetatean.id));
+    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+
+    const fileName = `Cerere_Adoptie_${Date.now()}.pdf`;
+    const filePath = path.join(uploadDir, fileName);
+
+    const options = { format: 'A4', margin: { top: '30px', bottom: '30px', left: '30px', right: '30px' } };
+    const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, options);
+    fs.writeFileSync(filePath, pdfBuffer);
+
+    await Document.create({
+      dosar_id: dosar_id,
+      utilizator_id: cetatean.id,
+      tip_document: 'alte', 
+      nume_fisier: 'Cerere de Evaluare pentru Adopție',
+      cale_fisier: `uploads/${cetatean.id}/${fileName}`,
+      validat: true 
+    });
+
+    res.json({ mesaj: 'Cerere Adopție generată cu succes.' });
+  } catch (err) {
+    console.error("Eroare cerere adopție:", err);
+    res.status(500).json({ eroare: err.message });
+  }
 });
 
 module.exports = router;

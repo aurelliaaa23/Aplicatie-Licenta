@@ -97,9 +97,15 @@ export default function Dashboard() {
         setDosare(data);
       } else {
         const { data } = await api.get('/dosare');
+        
         if (rol === 'funcționar_primărie') {
-          setDosare(data.filter(d => d.tip === 'certificat_handicap'));
+          // Primăria vede dosarele de Handicap și Adopție
+          setDosare(data.filter(d => ['certificat_handicap', 'adoptie'].includes(d.tip)));
+        } else if (rol === 'funcționar_poliție') {
+          // Poliția vede STRICT dosarele de Adopție
+          setDosare(data.filter(d => d.tip === 'adoptie'));
         } else {
+          // Restul (Cetățean, Funcționar DGASPC, Manager etc.) văd dosarele lor conform backend-ului
           setDosare(data);
         }
       }
