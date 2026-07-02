@@ -104,6 +104,11 @@ export default function Dosare() {
     return isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('ro-RO');
   };
 
+  const solicitariUnice = filtrateSolicitari.reduce((acc, s) => {
+  if (!acc.find(x => x.dosar_id === s.dosar_id)) acc.push(s);
+  return acc;
+}, []);
+
   return (
     <Layout title={titluPagina}>
       <div className="page-header">
@@ -181,7 +186,8 @@ export default function Dosare() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtrateSolicitari.map((s) => {
+        
+                  {solicitariUnice.map((s) => {
                     const dosarObj = s.dosar || s.Dosar || {};
                     const cetateanObj = s.cetatean || s.Utilizator || {};
                     return (

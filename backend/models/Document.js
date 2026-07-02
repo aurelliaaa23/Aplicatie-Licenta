@@ -4,6 +4,7 @@ const sequelize = require('../config/database');
 const Document = sequelize.define('Document', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   dosar_id: { type: DataTypes.INTEGER, allowNull: false },
+  utilizator_id: { type: DataTypes.INTEGER, allowNull: true },
   nume_fisier: { type: DataTypes.STRING(255), allowNull: false },
   cale_fisier: { type: DataTypes.STRING(255), allowNull: false },
   tip_document: { type: DataTypes.STRING(100) },
@@ -11,6 +12,7 @@ const Document = sequelize.define('Document', {
     type: DataTypes.ENUM('incarcat', 'validat', 'ilizibil', 'incomplet'),
     defaultValue: 'incarcat',
   },
+  validat: { type: DataTypes.BOOLEAN, defaultValue: false },  // ← ADAUGĂ
   motiv_respingere: { type: DataTypes.TEXT },
   semnat_digital: { type: DataTypes.BOOLEAN, defaultValue: false },
   date_semnatura: { type: DataTypes.TEXT },

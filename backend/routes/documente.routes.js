@@ -278,5 +278,29 @@ router.post('/genereaza-cerere-adoptie', verificaToken, async (req, res) => {
     res.status(500).json({ eroare: err.message });
   }
 });
+// ── PATCH /api/documente/:id/valideaza ───────────────────────────────────────
+// ── PATCH /api/documente/:id/valideaza ───────────────────────────────────────
+// ── PATCH /api/documente/:id/valideaza ── (alias comun, același lucru)
+router.patch('/:id/valideaza', verificaToken, async (req, res) => {
+  try {
+    const doc = await Document.findByPk(req.params.id);
+    if (!doc) return res.status(404).json({ eroare: 'Documentul nu a fost găsit' });
+
+    await doc.update({ validat: true, status_document: 'validat' });
+
+    await IstoricActiuni.create({
+      utilizator_id: req.utilizator.id,
+      dosar_id:      doc.dosar_id,
+      actiune:       'Document aprobat',
+      detalii:       `Document validat: ${doc.nume_fisier || doc.tip_document}`,
+      adresa_ip:     req.ip,
+    }).catch(e => console.error('Eroare istoric:', e));
+
+    res.json({ mesaj: 'Document aprobat cu succes', id: doc.id });
+  } catch (err) {
+    console.error('Eroare validare document:', err);
+    res.status(500).json({ eroare: err.message });
+  }
+});
 
 module.exports = router;

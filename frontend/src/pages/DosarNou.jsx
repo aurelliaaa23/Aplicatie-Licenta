@@ -286,6 +286,7 @@ export default function DosarNou() {
 
       const { data: dosar } = await api.post('/dosare', { tip, descriere: payloadDescriere, prioritate });
       setDosarId(dosar.id);
+      strada: dateCerere.strada
       
       // Upload documente în funcție de dosar
       if (isHandicap) {
@@ -649,7 +650,7 @@ export default function DosarNou() {
                      </div>
                    )}
                    <div className="form-group" style={{ flex: 2 }}>
-                     <label>Medic Familie (Titular) *</label>
+                     <label>Medic Familie*</label>
                      <select className="form-input" value={medicFam.medic} onChange={(e) => setMedicFam({...medicFam, medic: e.target.value})} disabled={!judetMedicFam}>
                        <option value="">{judetMedicFam ? (mediciFamilie.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit în acest județ') : 'Alegeți județul'}</option>
                        {mediciFamilie.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
@@ -657,36 +658,6 @@ export default function DosarNou() {
                    </div>
                  </div>
               </div>
-
-              {dateFamilie.tipFamilie === 'integrala' && (
-                  <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginTop: 16 }}>
-                     <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Solicitare Certificat Medical Adopție (Pentru soț/soție)</h4>
-                     <div className="form-group">
-                       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
-                         <input type="checkbox" style={{ width: 18, height: 18 }} checked={medicFamSot.acelasiJudet} onChange={(e) => setMedicFamSot({...medicFamSot, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', medic: ''})} />
-                         <span style={{ fontSize: 13.5 }}>Medicul de familie al soțului/soției este din același județ?</span>
-                       </label>
-                     </div>
-                     <div className="form-row">
-                       {!medicFamSot.acelasiJudet && (
-                         <div className="form-group">
-                           <label>Selectați Județul medicului</label>
-                           <select className="form-input" value={medicFamSot.judet} onChange={(e) => setMedicFamSot({...medicFamSot, judet: e.target.value, medic: ''})}>
-                             <option value="">Alege județul...</option>
-                             {JUDETE.map(j => <option key={j} value={j}>{j}</option>)}
-                           </select>
-                         </div>
-                       )}
-                       <div className="form-group" style={{ flex: 2 }}>
-                         <label>Medic Familie (Soț/Soție) *</label>
-                         <select className="form-input" value={medicFamSot.medic} onChange={(e) => setMedicFamSot({...medicFamSot, medic: e.target.value})} disabled={!judetMedicFamSot}>
-                           <option value="">{judetMedicFamSot ? (mediciFamilieSot.length > 0 ? 'Alege medicul...' : 'Niciun medic găsit în acest județ') : 'Alegeți județul'}</option>
-                           {mediciFamilieSot.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
-                         </select>
-                       </div>
-                     </div>
-                  </div>
-              )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
                 <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
