@@ -152,12 +152,13 @@ export default function Register() {
   const [countdown, setCountdown] = useState(0);
   const [tipCont, setTipCont]     = useState('cetățean');
 
-  const [form, setForm] = useState({
+const [form, setForm] = useState({
     prenume: '', nume: '', cnp: '', telefon: '',
     email: '', parola: '', confirmare: '',
     institutie: '', departament: '',
     specialitate: '',
     judet: '', oras: '',
+    strada: '', numar: '',
   });
 
   if (utilizator) return <Navigate to="/dashboard" replace />;
@@ -203,6 +204,8 @@ export default function Register() {
       if (!form.judet) e.judet = 'Selectați județul de domiciliu';
       if (!form.oras && !form.judet.startsWith('București'))
         e.oras = 'Selectați orașul / comuna de domiciliu';
+      if (!form.strada.trim()) e.strada = 'Strada este obligatorie';
+      if (!form.numar.trim())  e.numar  = 'Numărul este obligatoriu';
     }
 
     if (tipCont === 'funcționar') {
@@ -255,6 +258,8 @@ export default function Register() {
         specialitate: form.specialitate,
         judet: form.judet,
         oras:  orasFinal,
+        strada: form.strada,
+        numar:  form.numar,
       });
       setUserId(data.user_id);
       setStep(2);
@@ -389,13 +394,30 @@ export default function Register() {
               </div>
 
               {/* ── CÂMPURI SPECIFICE: CETĂȚEAN ── */}
+              {/* ── CÂMPURI SPECIFICE: CETĂȚEAN ── */}
               {tipCont === 'cetățean' && (
-                <JudetOrasSelect
-                  judet={form.judet} oras={form.oras}
-                  onJudetChange={setJudet} onOrasChange={setOras}
-                  eroriJudet={erori.judet} eroriOras={erori.oras}
-                  labelJudet="Județ domiciliu *" labelOras="Oraș / Comună *"
-                />
+                <>
+                  <JudetOrasSelect
+                    judet={form.judet} oras={form.oras}
+                    onJudetChange={setJudet} onOrasChange={setOras}
+                    eroriJudet={erori.judet} eroriOras={erori.oras}
+                    labelJudet="Județ domiciliu *" labelOras="Oraș / Comună *"
+                  />
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Stradă *</label>
+                      <input type="text" className={`form-input${erori.strada ? ' error' : ''}`}
+                        placeholder="ex: Bd. Unirii" value={form.strada} onChange={set('strada')} />
+                      {erori.strada && <p className="form-error">{erori.strada}</p>}
+                    </div>
+                    <div className="form-group">
+                      <label>Număr *</label>
+                      <input type="text" className={`form-input${erori.numar ? ' error' : ''}`}
+                        placeholder="ex: 10, bl. A, ap. 5" value={form.numar} onChange={set('numar')} />
+                      {erori.numar && <p className="form-error">{erori.numar}</p>}
+                    </div>
+                  </div>
+                </>
               )}
 
               {/* ── CÂMPURI SPECIFICE: FUNCȚIONAR ── */}

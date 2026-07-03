@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import SignaturePad from 'signature_pad';
 import Layout from '../components/Layout';
@@ -48,7 +48,7 @@ export default function DosarNou() {
 
   const [dateCerere, setDateCerere] = useState({
     serie_ci: '', numar_ci: '',
-    strada: '', tip_cerere: 'dosar_nou', acord_corectitudine: false, acord_gdpr: false,
+    strada: utilizator?.adresa_completa || '', tip_cerere: 'dosar_nou', acord_corectitudine: false, acord_gdpr: false,
   });
 
   const [dateFamilie, setDateFamilie] = useState({
@@ -203,7 +203,7 @@ export default function DosarNou() {
     } 
     else if (step === 1) {
       if (!dateCerere.serie_ci || !dateCerere.numar_ci || !dateCerere.strada) return toast.warning('Vă rugăm completați seria CI, numărul CI și strada.');
-      if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) return toast.warning('Bifați ambele acorduri generale (corectitudine și GDPR).');
+      if (!dateCerere.acord_corectitudine || !dateCerere.acord_gdpr) return toast.warning('Bifați acordurile generale pentru a continua.');
       
       if (isCopil || isAdoptie) {
         if (isCopil && (!dateCopil.nume || !dateCopil.prenume || dateCopil.cnp.length !== 13)) return toast.warning('Vă rugăm să completați datele copilului corect (CNP din 13 cifre).');
@@ -211,30 +211,26 @@ export default function DosarNou() {
         if (dateFamilie.tipFamilie === 'integrala' && dateFamilie.cnpSot.length !== 13) return toast.warning('CNP-ul soțului trebuie să fie valid și complet (13 cifre).');
       }
 
-      try {
-        await api.patch('/auth/profil', {
-          adresa_completa: `${dateCerere.strada}, ${utilizator?.oras || ''}, ${utilizator?.judet || ''}`,
-        });
-        if (checkAuth) checkAuth();
-      } catch (err) { console.error("Eroare update profil", err); }
       setStep(2);
     } 
     else if (step === 2) {
       if (isCopil && tip === 'alocatie') {
           if (!dateAlocatie.acelasiJudet && !dateAlocatie.judet) return toast.warning('Selectați județul instituției!');
           if (!dateAlocatie.tipCadru || !dateAlocatie.cadruDidacticId) return toast.warning('Completați toate informațiile despre școală!');
+          if (!descriere.trim()) return toast.warning('Descrieți pe scurt situația dvs.');
           setStep(3);
       } else if (isCopil && tip === 'indemnizatie') {
+          if (!descriere.trim()) return toast.warning('Descrieți pe scurt situația dvs.');
           setStep(3);
       } else if (isAdoptie) {
           if (!medicFam.medic) return toast.warning('Selectați medicul de familie pentru titular!');
-          if (dateFamilie.tipFamilie === 'integrala' && !medicFamSot.medic) return toast.warning('Selectați medicul de familie pentru soț/soție!');
+          if (!descriere.trim()) return toast.warning('Descrieți pe scurt situația dvs.');
           setStep(3);
       } else {
           if (!descriere.trim()) return toast.warning('Descrieți situația dvs.');
           setStep(3);
       }
-    } 
+    }
     else if (step === 3) {
       setStep(4);
     }
@@ -350,8 +346,10 @@ export default function DosarNou() {
          
          const mediciDeNotificat = [];
          if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Titular)' });
-         if (dateFamilie.tipFamilie === 'integrala' && medicFamSot.medic) {
-            mediciDeNotificat.push({ id: medicFamSot.medic, tip: 'Adeverință medicală adopție (Soț/Soție)' });
+         if (dateFamilie.tipFamilie === 'integrala' && medicFam.medic) {
+            // Se presupune același medic de familie pentru ambii — se creează totuși o solicitare
+            // SEPARATĂ (cu observație "Soț/Soție"), astfel încât medicul completează 2 formulare distincte.
+            mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Soț/Soție)' });
          }
          
          if (mediciDeNotificat.length > 0) {
@@ -480,8 +478,13 @@ export default function DosarNou() {
                   </div>
                 </div>
                 <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label>Detalii adresă (Stradă, număr, bloc, apartament) *</label>
-                  <input type="text" className="form-input" placeholder="ex: Bd. Unirii, nr. 10, bl. A, ap. 5" value={dateCerere.strada} onChange={(e) => setDateCerere({...dateCerere, strada: e.target.value})} />
+                  <label>Detalii adresă (precompletat din profil)</label>
+                  <input type="text" className="form-input" value={dateCerere.strada} disabled style={{ background: 'var(--bg)', color: 'var(--text-2)' }} />
+                  {!dateCerere.strada && (
+                    <p className="form-hint" style={{ color: 'var(--warning)' }}>
+                      Nu aveți adresa completată. Actualizați-o din <Link to="/profil">Profilul meu</Link>, apoi reveniți aici.
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -544,14 +547,14 @@ export default function DosarNou() {
               <div className="form-group" style={{ marginTop: 24 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
                   <input type="checkbox" style={{ width: 18, height: 18 }} checked={dateCerere.acord_corectitudine} onChange={(e) => setDateCerere({...dateCerere, acord_corectitudine: e.target.checked})} />
-                  <span style={{ fontSize: 13.5 }}>Declar pe propria răspundere că datele introduse sunt corecte și corespund cu realitatea.</span>
+                  <span style={{ fontSize: 13.5 }}>Declar pe propria răspundere că datele introduse sunt corecte și corespund cu realitatea. *</span>
                 </label>
               </div>
               
               <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
                   <input type="checkbox" style={{ width: 18, height: 18 }} checked={dateCerere.acord_gdpr} onChange={(e) => setDateCerere({...dateCerere, acord_gdpr: e.target.checked})} />
-                  <span style={{ fontSize: 13.5 }}>Sunt de acord cu prelucrarea datelor cu caracter personal de către DGASPC conform normelor GDPR.</span>
+                  <span style={{ fontSize: 13.5 }}>Sunt de acord cu prelucrarea datelor cu caracter personal de către DGASPC conform normelor GDPR. *</span>
                 </label>
               </div>
 
@@ -559,7 +562,7 @@ export default function DosarNou() {
                   <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
                           <input type="checkbox" style={{ width: 18, height: 18 }} checked={dateFamilie.cetateanUe} onChange={(e) => setDateFamilie({...dateFamilie, cetateanUe: e.target.checked})} />
-                          <span style={{ fontSize: 13.5 }}>Declar pe propria răspundere că sunt cetățean al Uniunii Europene.</span>
+                          <span style={{ fontSize: 13.5 }}>Declar pe propria răspundere că sunt cetățean al Uniunii Europene. *</span>
                       </label>
                   </div>
               )}
@@ -632,7 +635,7 @@ export default function DosarNou() {
               </div>
 
               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginTop: 16 }}>
-                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Solicitare Certificat Medical Adopție (Pentru dvs.)</h4>
+                 <h4 style={{ fontSize: 14, marginBottom: 16, color: 'var(--text-1)' }}>Solicitare Certificat Medical Adopție</h4>
                  <div className="form-group">
                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontWeight: 'normal' }}>
                      <input type="checkbox" style={{ width: 18, height: 18 }} checked={medicFam.acelasiJudet} onChange={(e) => setMedicFam({...medicFam, acelasiJudet: e.target.checked, judet: e.target.checked ? utilizator?.judet : '', medic: ''})} />
@@ -656,6 +659,26 @@ export default function DosarNou() {
                        {mediciFamilie.map(m => <option key={m.id} value={m.id}>Dr. {m.prenume} {m.nume} {m.oras ? `(${m.oras})` : ''}</option>)}
                      </select>
                    </div>
+                 </div>
+              </div>
+
+              <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginTop: 16 }}>
+                 <div className="form-group">
+                   <label>Prioritate</label>
+                   <div style={{ display: 'flex', gap: 10 }}>
+                     {['normal', 'urgent'].map((p) => (
+                       <button key={p} type="button" onClick={() => setPrioritate(p)} className={`btn ${prioritate === p ? 'btn-primary' : 'btn-secondary'}`}>
+                         {p === 'urgent' ? '🔴 Urgent' : '🟢 Normal'}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+                 <div className="form-group" style={{ marginBottom: 0 }}>
+                   <label>Descrierea situației *</label>
+                   <textarea className="form-textarea" rows={5}
+                     placeholder="Informații care considerați vor fi utile..."
+                     value={descriere} onChange={(e) => setDescriere(e.target.value)}
+                     style={{ minHeight: 110 }} />
                  </div>
               </div>
 
@@ -737,12 +760,34 @@ export default function DosarNou() {
                    </div>
                )}
 
+               <div style={{ background: 'var(--surface)', padding: 16, border: '1px solid var(--border)', borderRadius: 8, marginTop: 16 }}>
+                 <div className="form-group">
+                   <label>Prioritate</label>
+                   <div style={{ display: 'flex', gap: 10 }}>
+                     {['normal', 'urgent'].map((p) => (
+                       <button key={p} type="button" onClick={() => setPrioritate(p)} className={`btn ${prioritate === p ? 'btn-primary' : 'btn-secondary'}`}>
+                         {p === 'urgent' ? '🔴 Urgent' : '🟢 Normal'}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+                 <div className="form-group" style={{ marginBottom: 0 }}>
+                   <label>Descrierea situației *</label>
+                   <textarea className="form-textarea" rows={5}
+                     placeholder="Informații care considerați vor fi utile..."
+                     value={descriere} onChange={(e) => setDescriere(e.target.value)}
+                     style={{ minHeight: 110 }} />
+                 </div>
+               </div>
+
                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
                    <button className="btn btn-secondary" onClick={prevStep}>Înapoi</button>
                    <button className="btn btn-primary" onClick={nextStep}>Continuare →</button>
                </div>
              </>
           )}
+
+          {/* PASUL 3: Documente */}
 
           {/* PASUL 3: Documente */}
           {step === 3 && isHandicap ? (

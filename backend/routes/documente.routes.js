@@ -219,6 +219,7 @@ router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
 // ── POST /api/documente/genereaza-cerere-adoptie ────────────────────────────
 
 // ── POST /api/documente/genereaza-cerere-adoptie ────────────────────────────
+// ── POST /api/documente/genereaza-cerere-adoptie ────────────────────────────
 router.post('/genereaza-cerere-adoptie', verificaToken, async (req, res) => {
   try {
     const { dosar_id, date_cerere, date_adoptie, date_familie, semnatura_base64, semnatura_sot_base64 } = req.body;
@@ -245,34 +246,27 @@ router.post('/genereaza-cerere-adoptie', verificaToken, async (req, res) => {
     html = html.replace(/{{NUME_SOT}}/g, numeSot);
     html = html.replace(/{{CNP_SOT}}/g, cnpSot);
     html = html.replace(/{{GEN_COPIL}}/g, date_adoptie.gen_copil === 'indiferent' ? 'Indiferent (Băiat/Fată)' : date_adoptie.gen_copil);
-    html = html.replace(/{{GREU_ADOPTABIL}}/g, date_adoptie.greu_adoptabil === 'Da' ? 'Da (Avem disponibilitate)' : 'Nu (Doar copii din profilul standard)');
+    html = html.replace(/{{GREU_ADOPTABIL}}/g, date_adoptie.greu_adoptabil === 'Da' ? 'Dosar Nou' : 'Reevaluare');
     html = html.replace(/{{SEMNATURA_BASE64}}/g, semnatura_base64 || '');
-    
-    // Generăm un div alb gol ca imagine dacă nu există semnătura soțului, pentru a nu lăsa imaginea spartă în PDF
-    const emptyImage = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
-    html = html.replace(/{{SEMNATURA_SOT_BASE64}}/g, semnatura_sot_base64 || emptyImage);
     html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
 
-    const uploadDir = path.join(__dirname, '../uploads', String(cetatean.id));
-    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+    const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, { format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' } });
 
-    const fileName = `Cerere_Adoptie_${Date.now()}.pdf`;
-    const filePath = path.join(uploadDir, fileName);
-
-    const options = { format: 'A4', margin: { top: '30px', bottom: '30px', left: '30px', right: '30px' } };
-    const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, options);
-    fs.writeFileSync(filePath, pdfBuffer);
+    const dir = path.join(__dirname, '../uploads', String(cetatean.id));
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    const fileName = `Cerere_Adoptie_${dosar_id}_${Date.now()}.pdf`;
+    fs.writeFileSync(path.join(dir, fileName), pdfBuffer);
 
     await Document.create({
-      dosar_id: dosar_id,
+      dosar_id,
       utilizator_id: cetatean.id,
-      tip_document: 'alte', 
-      nume_fisier: 'Cerere de Evaluare pentru Adopție',
+      nume_fisier: 'Cerere_Adopție.pdf',
+      tip_document: 'alte',
       cale_fisier: `uploads/${cetatean.id}/${fileName}`,
-      validat: true 
+      status_document: 'incarcat',
     });
 
-    res.json({ mesaj: 'Cerere Adopție generată cu succes.' });
+    res.json({ mesaj: 'Cerere de adopție generată cu succes.' });
   } catch (err) {
     console.error("Eroare cerere adopție:", err);
     res.status(500).json({ eroare: err.message });

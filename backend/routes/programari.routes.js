@@ -51,9 +51,7 @@ router.post('/', verificaToken, async (req, res) => {
       functionar_id: req.utilizator.id, 
       tip_comisie,
       data_ora_programare: data_ora, // FIX: Am corectat denumirea coloanei
-      durata_minute: durata_minute || 30,
-      locatie: locatie || 'Sediul DGASPC',
-      status: 'programat'
+      detalii: "Programarea va dura " + durata_minute || 30 + "  și va fi la " + locatie || 'Sediul DGASPC',
     });
 
     // 2. Actualizăm statusul dosarului

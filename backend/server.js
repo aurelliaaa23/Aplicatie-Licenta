@@ -17,6 +17,7 @@ const dosareRoutes      = require('./routes/dosare.routes');
 const documenteRoutes   = require('./routes/documente.routes');
 const programariRoutes  = require('./routes/programari.routes');
 const notificariRoutes  = require('./routes/notificari.routes');
+const chatbotRoutes     = require('./routes/chatbot.routes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -41,6 +42,7 @@ app.use('/api/dosare',     dosareRoutes);
 app.use('/api/documente',  documenteRoutes);
 app.use('/api/programari', programariRoutes);
 app.use('/api/notificari', notificariRoutes);
+app.use('/api/chatbot',    chatbotRoutes);
 
 // ── Rută de test ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {
@@ -81,8 +83,8 @@ async function pornireSever() {
     // Roluri inițiale
     const roluriInitiale = [
       'cetățean', 'funcționar', 'medic',
-      'funcționar_primărie', 'reprezentant_școală',
-      'manager', 'administrator',
+      'funcționar_primărie', 'reprezentant_școală', 'funcționar_poliție',
+      'administrator'
     ];
     for (const numeRol of roluriInitiale) {
       await Rol.findOrCreate({ where: { nume: numeRol } });

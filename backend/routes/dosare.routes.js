@@ -97,15 +97,14 @@ router.get('/', verificaToken, async (req, res) => {
     }
 
     const includeArray = [
-      { model: Utilizator, as: 'functionar' },
-      { model: Document }
+      { model: Utilizator, as: 'cetatean', include: [{ model: ProfilCetatean, as: 'profilCetatean' }] },
+        { model: Utilizator, as: 'functionar' },
+        { model: Document },
+        { model: ProgramareComisie },
+        { model: SolicitareMedicala, as: 'solicitari' }
     ];
 
-    if (undeCetatean) {
-      includeArray.push({ model: Utilizator, as: 'cetatean', where: undeCetatean, required: true });
-    } else {
-      includeArray.push({ model: Utilizator, as: 'cetatean' });
-    }
+    
 
     const dosare = await Dosar.findAll({
       where: whereDosar,
@@ -168,30 +167,25 @@ router.post('/', verificaToken, verificaRol('cetățean'), async (req, res) => {
       }
     }
 
+    // Dacă a fost găsit un funcționar eligibil, dosarul intră direct "În analiză".
+    // Dacă nu (nu există funcționar disponibil în departament/județ), rămâne "Depus" până la alocare manuală.
+    const statusInitial = functionarAlocatId ? 'in_analiza' : 'depus';
+
     const dosar = await Dosar.create({
       numar_dosar:  numar,
       tip, descriere, prioritate: prioritate || 'normal',
       cetatean_id:  req.utilizator.id,
       functionar_id: functionarAlocatId,
       departament:  deptDosar,
-      status:       'depus',
+      status:       statusInitial,
     });
 
     await IstoricActiuni.create({
-      utilizator_id: req.utilizator.id, dosar_id: dosar.id, actiune: 'Dosar creat și alocat automat',
-      detalii: `Tip: ${tip}, Dosar: ${numar}, Funcționar: ${functionarAlocatId ? 'Alocat' : 'Nealocat'}`,
+      utilizator_id: req.utilizator.id, dosar_id: dosar.id,
+      actiune: functionarAlocatId ? 'Dosar creat și alocat automat funcționarului' : 'Dosar creat, în așteptare alocare funcționar',
+      detalii: `Tip: ${tip}, Dosar: ${numar}, Funcționar: ${functionarAlocatId ? 'Alocat' : 'Nealocat'}, Status: ${statusInitial}`,
       adresa_ip: req.ip,
     }).catch(err => console.error("Eroare istoric:", err));
-
-    if (req.body.strada) {
-  const profil = await ProfilCetatean.findOne({ where: { utilizator_id: req.utilizator.id } });
-  const adresaNouă = req.body.strada;
-  if (profil) {
-    await profil.update({ adresa_completa: adresaNouă });
-  } else {
-    await ProfilCetatean.create({ utilizator_id: req.utilizator.id, adresa_completa: adresaNouă });
-  }
-}
 
     // FIX: NOTIFICĂM AUTOMAT PRIMĂRIA CĂ ARE O NOUĂ ANCHETĂ DE FĂCUT!
     if(tip === 'certificat_handicap'){
@@ -535,7 +529,7 @@ router.post('/:id/ancheta-sociala', verificaToken, async (req, res) => {
 // ── 10. POST /api/dosare/:id/finalizare-comisie ────────────────────────────
 router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
   try {
-    const { actiune, grad, revizuire_luni, motiv } = req.body;
+    const { actiune, grad, revizuire_luni, motiv, nume_copil_adoptat, prenume_copil_adoptat, cnp_copil_adoptat } = req.body;
     const dosar = await Dosar.findByPk(req.params.id, { include: [{ model: Utilizator, as: 'cetatean' }] });
     if (!dosar) return res.status(404).json({ eroare: 'Dosar negăsit' });
 
@@ -552,7 +546,52 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
     if (actiune === 'aproba') {
       const dir = path.join(__dirname, '../uploads', String(req.utilizator.id));
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-      
+
+      // ── ADOPȚIE — Certificat de Adopție cu datele copilului ──
+      if (dosar.tip === 'adoptie') {
+        if (!nume_copil_adoptat || !prenume_copil_adoptat || !cnp_copil_adoptat) {
+          return res.status(400).json({ eroare: 'Numele, prenumele și CNP-ul copilului adoptat sunt obligatorii.' });
+        }
+
+        const numeFisier = `Certificat_Adoptie_${Date.now()}.pdf`;
+        const caleAbsoluta = path.join(dir, numeFisier);
+
+        const payloadSablon = {
+          nume: dosar.cetatean.nume,
+          prenume: dosar.cetatean.prenume,
+          cnp: dosar.cetatean.cnp || '-',
+          numar_dosar: dosar.numar_dosar,
+          nume_copil_adoptat,
+          prenume_copil_adoptat,
+          cnp_copil_adoptat,
+          nume_functionar: `${req.utilizator.prenume} ${req.utilizator.nume}`,
+        };
+
+        await genereazaDinSablon('Decizie_Adoptie', payloadSablon, caleAbsoluta);
+
+        await Document.create({
+          dosar_id: dosar.id,
+          tip_document: 'decizie',
+          nume_fisier: numeFisier,
+          cale_fisier: `uploads/${req.utilizator.id}/${numeFisier}`,
+          status_document: 'validat'
+        });
+
+        await dosar.update({ status: 'aprobat' });
+
+        await mailer.sendMail({
+          from: `"DGASPC Digital" <${process.env.EMAIL_USER}>`,
+          to: dosar.cetatean.email,
+          subject: `[DGASPC] Certificat de Adopție Emis - Dosar ${dosar.numar_dosar}`,
+          html: `<p>Stimate/ă ${dosar.cetatean.prenume} ${dosar.cetatean.nume},</p>
+                 <p>Vă informăm cu bucurie că adopția copilului <strong>${prenume_copil_adoptat} ${nume_copil_adoptat}</strong> a fost <strong>APROBATĂ</strong> de comisie.</p>
+                 <p>Certificatul de adopție a fost emis în format electronic. Îl puteți descărca din secțiunea "Documente atașate" a dosarului.</p>`
+        }).catch(console.error);
+
+        return res.json({ mesaj: 'Certificat de adopție generat cu succes!' });
+      }
+
+      // ── HANDICAP — rămâne neschimbat ──
       const numeFisier = `Certificat_Handicap_${Date.now()}.pdf`; 
       const caleAbsoluta = path.join(dir, numeFisier);
       
@@ -565,7 +604,6 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
         dataRevizuire = data.toLocaleDateString('ro-RO');
       }
 
-      // Împachetăm datele extrase pentru șablonul HTML
       const payloadSablon = {
         nume: dosar.cetatean.nume,
         prenume: dosar.cetatean.prenume,
@@ -574,10 +612,10 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
         oras: dosar.cetatean.oras || '-',
         grad: grad ? grad.toUpperCase() : 'NESPECIFICAT',
         valabilitate: valabilitateText,
-        revizuire: dataRevizuire
+        revizuire: dataRevizuire,
+        nume_functionar: `${req.utilizator.prenume} ${req.utilizator.nume}`,
       };
 
-      // Generăm certificatul elegant prin HTML
       await genereazaDinSablon('Certificat_Incadrare_Handicap', payloadSablon, caleAbsoluta);
 
       await Document.create({ 
@@ -599,7 +637,7 @@ router.post('/:id/finalizare-comisie', verificaToken, async (req, res) => {
                <p>Certificatul dumneavoastră a fost emis în format electronic. Îl puteți descărca direct din secțiunea "Documente atașate" a dosarului.</p>`
       }).catch(console.error);
 
-      res.json({ mesaj: 'Certificat generat din șablon cu succes!' });
+      return res.json({ mesaj: 'Certificat generat din șablon cu succes!' });
     }
   } catch (err) { 
     res.status(500).json({ eroare: err.message }); 

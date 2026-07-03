@@ -35,6 +35,9 @@ export default function Dosare() {
   const isPolitie      = rol === 'funcționar_poliție';
   const isColaborator  = isMedic || isReprezentant;
 
+  const deptUser    = (utilizator?.profilFunctionar?.departament || utilizator?.departament || '').toLowerCase();
+  const isEvidenta  = deptUser.includes('evidenț') || deptUser.includes('evident') || deptUser.includes('persoane');
+
   useEffect(() => {
     if (isColaborator) {
       const endpoint = isMedic ? '/dosare/medici/solicitari' : '/dosare/reprezentant/solicitari';
@@ -237,7 +240,12 @@ export default function Dosare() {
                 <tbody>
                   {filtrateDosare.map((d) => {
                     const cetateanObj = d.cetatean || d.Utilizator || {};
-                    const areAncheta = (d.Documents || d.documente || d.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala');
+                    const docsDosar = d.Documents || d.documente || d.Documente || [];
+                    // La adopție, fiecare departament are un task DISTINCT — nu trebuie amestecate.
+                    // Evidența Persoanelor are task propriu doar la adopție; la handicap nu are nimic de făcut.
+                    const areAncheta = (d.tip === 'adoptie' && isEvidenta)
+                      ? docsDosar.some(doc => doc.nume_fisier && doc.nume_fisier.includes('Domiciliu'))
+                      : docsDosar.some(doc => doc.tip_document === 'ancheta_sociala');
                     
                     return (
                       <tr key={d.id}>

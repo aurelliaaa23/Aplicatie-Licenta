@@ -75,7 +75,10 @@ export default function DosarDetaliu() {
   const [showDocsBox, setShowDocsBox] = useState(false);
   const [docsSuplimentare, setDocsSuplimentare] = useState('');
   const [comisieActiune, setComisieActiune] = useState('');
-  const [comisieDate, setComisieDate] = useState({ grad: 'mediu', revizuire: '12', motiv: '' });
+  const [comisieDate, setComisieDate] = useState({
+    grad: 'mediu', revizuire: '12', motiv: '',
+    nume_copil_adoptat: '', prenume_copil_adoptat: '', cnp_copil_adoptat: '',
+  });
   const [actiuneCopilActiva, setActiuneCopilActiva] = useState(false);
 
   const canvasRef = useRef(null);
@@ -169,10 +172,21 @@ export default function DosarDetaliu() {
 
   const handleFinalizareComisie = async () => {
     if (comisieActiune === 'respinge' && !comisieDate.motiv) return toast.warning('Introduceți motivul!');
+    if (comisieActiune === 'aproba' && isAdoptie && (!comisieDate.nume_copil_adoptat.trim() || !comisieDate.prenume_copil_adoptat.trim() || comisieDate.cnp_copil_adoptat.length !== 13)) {
+      return toast.warning('Completați numele, prenumele și CNP-ul copilului adoptat (CNP din 13 cifre).');
+    }
     setSavingStatus(true);
     try {
-      await api.post(`/dosare/${id}/finalizare-comisie`, { actiune: comisieActiune, grad: comisieDate.grad, revizuire_luni: comisieDate.revizuire, motiv: comisieDate.motiv });
-      toast.success(comisieActiune === 'aproba' ? 'Certificat emis cu succes!' : 'Dosar respins!');
+      await api.post(`/dosare/${id}/finalizare-comisie`, {
+        actiune: comisieActiune,
+        grad: comisieDate.grad,
+        revizuire_luni: comisieDate.revizuire,
+        motiv: comisieDate.motiv,
+        nume_copil_adoptat: comisieDate.nume_copil_adoptat,
+        prenume_copil_adoptat: comisieDate.prenume_copil_adoptat,
+        cnp_copil_adoptat: comisieDate.cnp_copil_adoptat,
+      });
+      toast.success(comisieActiune === 'aproba' ? (isAdoptie ? 'Certificat de adopție emis cu succes!' : 'Certificat emis cu succes!') : 'Dosar respins!');
       setComisieActiune(''); fetchDosar();
     } catch { toast.error('Eroare la procesare'); } finally { setSavingStatus(false); }
   };
@@ -240,7 +254,7 @@ export default function DosarDetaliu() {
     setSavingStatus(true);
     try {
       const cetatean = dosar.cetatean;
-      const domiciliu = `${cetatean.judet || ''}, ${cetatean.oras || ''}`;
+      const domiciliu = `${cetatean.profilCetatean?.adresa_completa ? cetatean.profilCetatean.adresa_completa + ', ' : ''}${cetatean.oras || ''}, ${cetatean.judet || ''}`;
       const payload = { nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu, telefon: cetatean.telefon, ...formPrimarie, semnatura_base64: semnaturaBase64 };
       await api.post(`/dosare/${id}/ancheta-sociala`, payload);
       toast.success('Ancheta socială a fost generată și atașată dosarului!'); fetchDosar();
@@ -298,7 +312,8 @@ export default function DosarDetaliu() {
 
   const cetatean = dosar.cetatean || {};
   const functionar = dosar.functionar || null;
-  const documenteAtasate = dosar.Documents || dosar.documente || dosar.Documente || [];
+  const documenteAtasate = (dosar.Documents || dosar.documente || dosar.Documente || [])
+    .filter(doc => doc.tip_document !== 'semnatura');
   const programareExistenta = dosar.ProgramareComisies?.[0] || dosar.programari?.[0] || dosar.Programari?.[0] || null;
   const comisieTrecuta = programareExistenta && new Date(programareExistenta.data_ora_programare || programareExistenta.data_ora) < new Date();
 
@@ -341,9 +356,6 @@ export default function DosarDetaliu() {
     else if (solicitariMedic.some(s => s.status === 'finalizata' || s.status === 'finalizat')) { topStatusText = 'Parțial completat'; }
   } else if (isPolitie && isAdoptie && areCazier) {
     topStatusText = '✓ Completat'; topStatusBadge = 'aprobat';
-  } else if (isFunctionarPrimarie && isAdoptie) {
-    if (isEvidenta && areDomiciliu) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
-    else if (isAsistenta && areAnchetaAdoptie) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
   } else if (ascundeFormularulStandard) {
     topStatusText = '✓ Completat'; topStatusBadge = 'aprobat';
   }
@@ -452,7 +464,7 @@ export default function DosarDetaliu() {
       <button className="btn btn-secondary" onClick={() => setShowDocsBox(!showDocsBox)} style={{ flex: 1, height: 40 }}>
         💬 Cere documente suplimentare
       </button>
-      {(isCopilDosar || isAdoptie) ? (
+      {isCopilDosar ? (
         <button className="btn" style={{ background: toateDocumenteleAprobate ? '#10b981' : '#9ca3af', color: '#fff', flex: 1, height: 40, fontWeight: 'bold' }} onClick={() => setActiuneCopilActiva(true)} disabled={savingStatus || !toateDocumenteleAprobate}>
           ✔️ Validare și Decizie Finală
         </button>
@@ -495,7 +507,7 @@ export default function DosarDetaliu() {
   </div>
 )}
 
-    {(isCopilDosar || isAdoptie) && actiuneCopilActiva && (
+    {isCopilDosar && actiuneCopilActiva && (
       <div style={{ padding: 20, background: '#f0fdf4', border: '2px solid #22c55e', borderRadius: 8, marginTop: 16 }}>
         <h4 style={{ color: '#166534', margin: '0 0 15px 0', fontSize: 16 }}>🎯 Luare Decizie Finală</h4>
         <p style={{ fontSize: 13.5, color: '#15803d', marginBottom: 16 }}>
@@ -516,21 +528,34 @@ export default function DosarDetaliu() {
 ) : null}
             </div>
 
-            {dosar.status === 'programat_comisie' && comisieTrecuta && !isCopilDosar && !isAdoptie && (
+            {dosar.status === 'programat_comisie' && comisieTrecuta && !isCopilDosar && (
               <div style={{ marginTop: 30, padding: 20, border: '2px solid indigo', borderRadius: 8, background: '#f8f9fa' }}>
                 <h3 style={{ color: 'indigo', marginBottom: 15 }}>⚖️ Decizie Finală Comisie</h3>
                 <p style={{ fontSize: 13, color: 'gray', marginBottom: 15 }}>Data comisiei a trecut. Vă rugăm introduceți decizia finală.</p>
                 {!comisieActiune ? (
                   <div style={{ display: 'flex', gap: 12 }}>
-                    <button className="btn btn-primary" onClick={() => setComisieActiune('aproba')}>✅ Aprobă și Emite Certificat</button>
+                    <button className="btn btn-primary" onClick={() => setComisieActiune('aproba')}>✅ {isAdoptie ? 'Aprobă și Emite Certificat de Adopție' : 'Aprobă și Emite Certificat'}</button>
                     <button className="btn btn-danger" onClick={() => setComisieActiune('respinge')}>❌ Respinge dosarul</button>
                   </div>
                 ) : (
                   <div>
-                    {comisieActiune === 'aproba' && (
+                    {comisieActiune === 'aproba' && !isAdoptie && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                         <div className="form-group"><label>Grad handicap</label><select className="form-select" value={comisieDate.grad} onChange={e => setComisieDate({ ...comisieDate, grad: e.target.value })}><option value="usor">Ușor</option><option value="mediu">Mediu</option><option value="accentuat">Accentuat</option><option value="grav">Grav</option></select></div>
                         <div className="form-group"><label>Revizuire (luni)</label><select className="form-select" value={comisieDate.revizuire} onChange={e => setComisieDate({ ...comisieDate, revizuire: e.target.value })}><option value="6">6 luni</option><option value="12">12 luni</option><option value="24">24 luni</option><option value="permanent">Permanent</option></select></div>
+                      </div>
+                    )}
+                    {comisieActiune === 'aproba' && isAdoptie && (
+                      <div style={{ background: '#fff', padding: 16, borderRadius: 6, border: '1px solid var(--border)', marginBottom: 12 }}>
+                        <p style={{ fontSize: 12.5, color: 'var(--text-2)', marginBottom: 12 }}>Introduceți datele copilului adoptat — vor apărea pe certificat:</p>
+                        <div className="form-row">
+                          <div className="form-group"><label>Nume copil *</label><input type="text" className="form-input" value={comisieDate.nume_copil_adoptat} onChange={e => setComisieDate({ ...comisieDate, nume_copil_adoptat: e.target.value })} /></div>
+                          <div className="form-group"><label>Prenume copil *</label><input type="text" className="form-input" value={comisieDate.prenume_copil_adoptat} onChange={e => setComisieDate({ ...comisieDate, prenume_copil_adoptat: e.target.value })} /></div>
+                        </div>
+                        <div className="form-group" style={{ marginBottom: 0 }}>
+                          <label>CNP copil *</label>
+                          <input type="text" className="form-input" maxLength={13} value={comisieDate.cnp_copil_adoptat} onChange={e => setComisieDate({ ...comisieDate, cnp_copil_adoptat: e.target.value.replace(/\D/g, '') })} />
+                        </div>
                       </div>
                     )}
                     {comisieActiune === 'respinge' && (
@@ -766,6 +791,12 @@ export default function DosarDetaliu() {
                 <>
                   <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
                     <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15 }}>📋 Anchetă Socială</h3>
+                    <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>📋 Date cetățean</div>
+                      <div style={{ fontSize: 13, color: '#1e293b' }}>👤 <strong>{cetatean.prenume} {cetatean.nume}</strong> · CNP: {cetatean.cnp}</div>
+                      <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Județ: {cetatean.judet} · Localitate: {cetatean.oras}</div>
+                      <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Adresă declarată: <strong>{cetatean.profilCetatean?.adresa_completa || 'Necompletată'}</strong></div>
+                    </div>
                     <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
                       <h4 style={{ margin: '0 0 15px 0', color: '#334155' }}>I. Date socio-demografice</h4>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
@@ -948,8 +979,8 @@ export default function DosarDetaliu() {
               <div style={{ padding: 20, background: '#e6f4ea', border: '2px solid #34a853', borderRadius: 8 }}>
                 <h3 style={{ color: '#137333', margin: '0 0 10px 0', fontSize: 16 }}>✅ DOSAR APROBAT</h3>
                 <p style={{ margin: 0, fontSize: 14, color: '#137333', lineHeight: 1.5 }}>
-                  {(isCopilDosar || isAdoptie) ? 'Dreptul a fost acordat și decizia a fost înregistrată.' : 'Certificatul a fost emis și trimis către cetățean.'}
-                </p>
+                  {isCopilDosar ? 'Dreptul a fost acordat și decizia a fost înregistrată.' : 'Certificatul a fost emis și trimis către cetățean.'}
+                  </p>
               </div>
             )}
 

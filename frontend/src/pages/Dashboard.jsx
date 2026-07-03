@@ -126,13 +126,22 @@ export default function Dashboard() {
     } catch {}
   };
 
-  let stats = { total: dosare.length, active: 0, aprobate: 0, urgente: 0, incomplet: 0, completate: 0 };
+  const deptUserDash = (utilizator?.profilFunctionar?.departament || utilizator?.departament || '').toLowerCase();
+  const isEvidentaPrimarie = deptUserDash.includes('evidenț') || deptUserDash.includes('evident') || deptUserDash.includes('persoane');
+
+  let stats = { total: dosare.length, active: 0, aprobate: 0, urgente: 0, incomplet: 0, completate: 0, respinse: 0 };
 
   if (rol === 'medic' || rol === 'reprezentant_școală') {
     stats.active = dosare.filter((d) => d.status !== 'finalizata' && d.status !== 'finalizat').length;
     stats.completate = dosare.filter((d) => d.status === 'finalizata' || d.status === 'finalizat').length;
   } else if (rol === 'funcționar_primărie') {
-    const completateCount = dosare.filter(d => (d.Documents || d.documente || d.Documente || []).some(doc => doc.tip_document === 'ancheta_sociala')).length;
+    const completateCount = dosare.filter(d => {
+      const docs = d.Documents || d.documente || d.Documente || [];
+      if (d.tip === 'adoptie' && isEvidentaPrimarie) {
+        return docs.some(doc => doc.nume_fisier && doc.nume_fisier.includes('Domiciliu'));
+      }
+      return docs.some(doc => doc.tip_document === 'ancheta_sociala');
+    }).length;
     stats.active = dosare.length - completateCount;
     stats.completate = completateCount;
   } else {
@@ -140,6 +149,7 @@ export default function Dashboard() {
     stats.aprobate = dosare.filter((d) => d.status === 'aprobat').length;
     stats.urgente = dosare.filter((d) => d.prioritate === 'urgent').length;
     stats.incomplet = dosare.filter((d) => d.status === 'incomplet').length;
+    stats.respinse = dosare.filter((d) => d.status === 'respins').length;
   }
 
   const necitite = notificari.filter((n) => !n.citita).length;
@@ -199,6 +209,9 @@ export default function Dashboard() {
         <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="warn" value={stats.urgente} label="Urgente" />
         {(rol === 'funcționar' || rol === 'manager') && (
           <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="red" value={stats.incomplet} label="Necesită completări" />
+        )}
+        {['cetățean', 'funcționar', 'manager'].includes(rol) && (
+          <StatCard icon={<Ico path="M18 6L6 18|M6 6l12 12" />} iconClass="red" value={stats.respinse} label="Dosare respinse" />
         )}
       </div>
 

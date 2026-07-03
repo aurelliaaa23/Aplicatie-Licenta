@@ -19,7 +19,8 @@ const TIP_COMISIE_COLOR = {
   certificat_handicap: '#d97706', // Mapare pentru dosare
   adoptie:             '#7c3aed',
   plasament:           '#2563eb',
-  alocatie:            '#0d9488'
+  alocatie:            '#2563eb',  // ← corectat: era teal, acum albastru (aceeași categorie ca protectia_copilului)
+  indemnizatie:        '#2563eb'   // ← adăugat: lipsea complet din hartă
 };
 
 const TIP_COMISIE_LABEL = {
@@ -31,8 +32,14 @@ const TIP_COMISIE_LABEL = {
   adoptie:             'Adopții',
   plasament:           'Protecția copilului',
   alocatie:            'Protecția copilului',
+  indemnizatie:        'Protecția copilului',
   alte_servicii:       'General'
 };
+
+// Doar categoriile unice, distincte — pentru legendă și pentru dropdown-ul de creare programare.
+// (TIP_COMISIE_LABEL/COLOR de mai sus rămân complete, cu alias-uri, pentru căutarea culorii/etichetei
+// oricărui tip_comisie sau tip_dosar existent în date.)
+const TIP_COMISIE_CANONICE = ['protectia_copilului', 'adoptii', 'evaluare_adulti', 'handicap', 'alte_servicii'];
 
 const messages_ro = {
   today: 'Azi', previous: '◀', next: '▶', month: 'Lună', week: 'Săptămână', day: 'Zi', agenda: 'Agendă',
@@ -159,10 +166,10 @@ export default function Calendar() {
       </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 18, flexWrap: 'wrap' }}>
-        {Object.entries(TIP_COMISIE_LABEL).map(([k, v]) => (
+        {TIP_COMISIE_CANONICE.map((k) => (
           <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-2)' }}>
             <div style={{ width: 10, height: 10, borderRadius: '50%', background: TIP_COMISIE_COLOR[k] }} />
-            {v}
+            {TIP_COMISIE_LABEL[k]}
           </div>
         ))}
       </div>
@@ -210,8 +217,7 @@ export default function Calendar() {
               </div>
               {[
                 ['📅 Data și ora', moment(selected.data_ora).format('DD MMMM YYYY, HH:mm')],
-                ['⏱ Durată', `${selected.durata_minute} minute`],
-                ['📍 Locație', selected.locatie || 'Sediul DGASPC'],
+                ['📍 Locație & ⏱ Durată', `${selected.detalii} `],
                 ['📂 Dosar', selected.Dosar?.numar_dosar || `#${selected.dosar_id}`],
               ].map(([label, val]) => (
                 <div key={label} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
@@ -246,8 +252,8 @@ export default function Calendar() {
             <div className="form-group">
               <label>Tip comisie / Dosar *</label>
               <select className="form-select" value={form.tip_comisie} onChange={set('tip_comisie')}>
-                {Object.entries(TIP_COMISIE_LABEL).map(([k, v]) => (
-                  <option key={k} value={k}>{v}</option>
+                {TIP_COMISIE_CANONICE.map((k) => (
+                  <option key={k} value={k}>{TIP_COMISIE_LABEL[k]}</option>
                 ))}
               </select>
             </div>

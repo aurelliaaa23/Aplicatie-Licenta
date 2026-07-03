@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ChatbotFlotant from './ChatbotFlotant';
 
 // ── SVG icon components ──────────────────────────────
 const Icon = ({ d, ...p }) => (
@@ -138,6 +139,8 @@ export default function Layout({ children, title, notifCount = 0 }) {
           {children}
         </main>
       </div>
+
+      {rol === 'cetățean' && <ChatbotFlotant />}
     </div>
   );
 }

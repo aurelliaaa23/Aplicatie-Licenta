@@ -76,6 +76,7 @@ router.post('/register', async (req, res) => {
       departament, institutie,
       specialitate,
       judet, oras,
+      strada, numar,
     } = req.body;
 
     if (!nume || !prenume || !email || !parola)
@@ -90,7 +91,7 @@ router.post('/register', async (req, res) => {
     if (numeRol === 'funcționar') {
       if (institutie === 'Primărie') numeRol = 'funcționar_primărie';
       else if (institutie === 'Instituție Învățământ') numeRol = 'reprezentant_scoala';
-      else if (institutie === 'Poliție') numeRol = 'funcționar_politie';
+      else if (institutie === 'Poliție') numeRol = 'funcționar_poliție';
       else numeRol = 'funcționar'; // Ramane implicit DGASPC
     }
 
@@ -111,7 +112,7 @@ router.post('/register', async (req, res) => {
     });
 
     // Creare profil specific
-    if (['funcționar', 'funcționar_primărie', 'manager', 'administrator'].includes(numeRol)) {
+    if (['funcționar', 'funcționar_primărie', 'funcționar_poliție', 'administrator', 'reprezentant_școală'].includes(numeRol)) {
       await ProfilFunctionar.create({
         utilizator_id: user.id,
         institutie:  institutie  || 'DGASPC',
@@ -128,8 +129,12 @@ router.post('/register', async (req, res) => {
 
     if (numeRol === 'cetățean') {
       if (judet && oras) {
+        const adresaCompleta = (strada || numar)
+          ? `Str. ${strada || ''}${numar ? ', nr. ' + numar : ''}`.trim()
+          : null;
         await ProfilCetatean.create({
-          utilizator_id:   user.id
+          utilizator_id:   user.id,
+          adresa_completa: adresaCompleta,
         });
       }
     }

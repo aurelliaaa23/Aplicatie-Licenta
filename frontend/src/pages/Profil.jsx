@@ -73,6 +73,7 @@ export default function Profil() {
     email:   utilizator?.email   || '',
     judet:   utilizator?.judet   || '',
     oras:    utilizator?.oras    || '',
+    adresa_completa: utilizator?.adresa_completa || '',
   });
 
   const [parole, setParole] = useState({
@@ -101,7 +102,7 @@ export default function Profil() {
       };
       
       if (esteCetatean) {
-        payload.adresa_completa = orasFinal ? `${orasFinal}, ${form.judet}` : form.judet;
+        payload.adresa_completa = form.adresa_completa;
       }
       
       const { data } = await api.patch('/auth/profil', payload);
@@ -262,7 +263,16 @@ export default function Profil() {
                   </select>
                 )}
               </div>
+              {esteCetatean && (
+              <div className="form-group">
+                <label>Adresă (stradă, număr, bloc, apartament)</label>
+                <input type="text" className="form-input" value={form.adresa_completa}
+                  onChange={set('adresa_completa')} placeholder="ex: Bd. Unirii, nr. 10, bl. A, ap. 5" />
+              </div>
+            )}
             </div>
+
+            
 
             <div className="form-group">
               <label>CNP</label>
