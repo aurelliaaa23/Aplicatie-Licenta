@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
+import ChatDosar from '../components/ChatDosar';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 
@@ -433,6 +434,8 @@ export default function DosarDetaliu() {
             <div style={{ fontSize: 14 }}>Dosar: <strong style={{ color: 'var(--blue)' }}>{dosar.numar_dosar}</strong> ({TIP_LABEL[dosar.tip] || dosar.tip})</div>
             <div>Status curent: <span className={`badge badge-${dosar.status}`}>{STATUS_LABEL[dosar.status]}</span></div>
           </div>
+
+          {dosar.functionar_id === utilizator?.id && <ChatDosar dosarId={id} />}
 
           <div className="card" style={{ padding: 24, borderTop: '4px solid var(--blue)' }}>
             <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>👤 Date Titular (Părinte)</h3>
@@ -1131,6 +1134,10 @@ export default function DosarDetaliu() {
                   <div><strong>Durată:</strong> {programareExistenta.durata_minute || 30} minute</div>
                 </div>
               </div>
+            )}
+
+            {(utilizator?.rol === 'cetățean' || (isFunctionar && dosar.functionar_id === utilizator?.id)) && (
+              <ChatDosar dosarId={id} />
             )}
           </div>
         </div>

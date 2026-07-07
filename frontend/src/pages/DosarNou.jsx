@@ -11,9 +11,7 @@ const TIPURI = [
   { value: 'alocatie',            label: '🏫 Alocație de stat (2-18 ani)', desc: 'Acordare alocație de stat pentru copil' },
   { value: 'indemnizatie',        label: '🍼 Indemnizație creștere copil (0-2 ani)', desc: 'Acordare indemnizație lunară creștere copil' },
   { value: 'adoptie',             label: '👨‍👩‍👧 Adopție',                  desc: 'Deschidere procedură de adopție națională sau internațională' },
-  { value: 'plasament',           label: '🏡 Plasament familial',          desc: 'Plasament copil în familie substitutivă sau la asistent maternal' },
-  { value: 'alte_servicii',       label: '📋 Alte servicii sociale',       desc: 'Asistență pentru familii în dificultate sau alte servicii DGASPC' },
-];
+ ];
 
 const JUDETE = [
   'București - Sector 1', 'București - Sector 2', 'București - Sector 3', 
