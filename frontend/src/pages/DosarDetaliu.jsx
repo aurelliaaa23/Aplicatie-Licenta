@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +46,8 @@ const SuccessBox = ({ mesaj }) => (
 
 export default function DosarDetaliu() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const persoanaCeruta = searchParams.get('persoana'); // 'titular' sau 'sot', trimis din listă
   const { utilizator } = useAuth();
   const navigate = useNavigate();
 
@@ -107,7 +109,7 @@ export default function DosarDetaliu() {
   });
   const setPF = (k, v) => setFormPrimarie(prev => ({ ...prev, [k]: v }));
 
-  const [formCazier, setFormCazier] = useState({ antecedente: 'Nu are antecedente penale', mentiuni: '' });
+  const [formCazier, setFormCazier] = useState({ });
   const [formDomiciliu, setFormDomiciliu] = useState({ confirmare: 'Da, locuiește la adresa declarată', detalii: '' });
   const [formAnchetaAdoptie, setFormAnchetaAdoptie] = useState({ locuinte: '', venituri: '', istoric: '', motivatie: '', concluzie: 'Apt pentru adopție' });
 
@@ -122,7 +124,8 @@ export default function DosarDetaliu() {
   const fetchDosar = async () => {
     try {
       const { data } = await api.get(`/dosare/${id}`);
-      setDosar(data);
+      console.log('DEBUG cetatean:', JSON.stringify(data.cetatean, null, 2));
+      setDosar(data);;
       setNewStatus(data.status);
       setMotiv(data.motiv_respingere || '');
 
@@ -154,9 +157,15 @@ export default function DosarDetaliu() {
   };
 
   const handleActionFunctionar = async (statusNou, suplimentareText = null) => {
+    let semnaturaFunctionarBase64 = null;
+    if (statusNou === 'aprobat') {
+      semnaturaFunctionarBase64 = canvasRef.current?.toDataURL('image/png');
+      const blankCanvas = document.createElement('canvas'); blankCanvas.width = canvasRef.current.width; blankCanvas.height = canvasRef.current.height;
+      if (semnaturaFunctionarBase64 === blankCanvas.toDataURL()) return toast.warning('Vă rugăm să semnați înainte de a acorda dreptul!');
+    }
     setSavingStatus(true);
     try {
-      await api.patch(`/dosare/${id}/status`, { status: statusNou, documente_suplimentare: suplimentareText });
+      await api.patch(`/dosare/${id}/status`, { status: statusNou, documente_suplimentare: suplimentareText, semnatura_functionar_base64: semnaturaFunctionarBase64 });
       toast.success('Acțiune realizată cu succes!');
       setShowDocsBox(false); setDocsSuplimentare(''); fetchDosar();
     } catch { toast.error('Eroare la actualizarea statusului'); } finally { setSavingStatus(false); }
@@ -165,8 +174,8 @@ export default function DosarDetaliu() {
   const handleAprobaDocument = async (docId) => {
     try {
       await api.patch(`/documente/${docId}/valideaza`);
-      setDosar(prev => ({ ...prev, Documents: prev.Documents.map(d => d.id === docId ? { ...d, validat: true } : d) }));
       toast.success('Document aprobat!');
+      await fetchDosar();
     } catch { toast.error('Eroare la aprobare'); }
   };
 
@@ -174,6 +183,12 @@ export default function DosarDetaliu() {
     if (comisieActiune === 'respinge' && !comisieDate.motiv) return toast.warning('Introduceți motivul!');
     if (comisieActiune === 'aproba' && isAdoptie && (!comisieDate.nume_copil_adoptat.trim() || !comisieDate.prenume_copil_adoptat.trim() || comisieDate.cnp_copil_adoptat.length !== 13)) {
       return toast.warning('Completați numele, prenumele și CNP-ul copilului adoptat (CNP din 13 cifre).');
+    }
+    let semnaturaFunctionarBase64 = null;
+    if (comisieActiune === 'aproba') {
+      semnaturaFunctionarBase64 = canvasRef.current?.toDataURL('image/png');
+      const blankCanvas = document.createElement('canvas'); blankCanvas.width = canvasRef.current.width; blankCanvas.height = canvasRef.current.height;
+      if (semnaturaFunctionarBase64 === blankCanvas.toDataURL()) return toast.warning('Vă rugăm să semnați înainte de a emite documentul!');
     }
     setSavingStatus(true);
     try {
@@ -185,6 +200,7 @@ export default function DosarDetaliu() {
         nume_copil_adoptat: comisieDate.nume_copil_adoptat,
         prenume_copil_adoptat: comisieDate.prenume_copil_adoptat,
         cnp_copil_adoptat: comisieDate.cnp_copil_adoptat,
+        semnatura_functionar_base64: semnaturaFunctionarBase64,
       });
       toast.success(comisieActiune === 'aproba' ? (isAdoptie ? 'Certificat de adopție emis cu succes!' : 'Certificat emis cu succes!') : 'Dosar respins!');
       setComisieActiune(''); fetchDosar();
@@ -255,7 +271,14 @@ export default function DosarDetaliu() {
     try {
       const cetatean = dosar.cetatean;
       const domiciliu = `${cetatean.profilCetatean?.adresa_completa ? cetatean.profilCetatean.adresa_completa + ', ' : ''}${cetatean.oras || ''}, ${cetatean.judet || ''}`;
-      const payload = { nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu, telefon: cetatean.telefon, ...formPrimarie, semnatura_base64: semnaturaBase64 };
+      // La adopție, includem și câmpurile specifice (venituri, istoric, motivație, concluzie adopție),
+      // ca să nu se mai piardă la trimitere — nu mai există un al doilea buton separat.
+      const payload = {
+        nume: cetatean.nume, prenume: cetatean.prenume, cnp: cetatean.cnp, domiciliu, telefon: cetatean.telefon,
+        ...formPrimarie,
+        ...(isAdoptie ? formAnchetaAdoptie : {}),
+        semnatura_base64: semnaturaBase64,
+      };
       await api.post(`/dosare/${id}/ancheta-sociala`, payload);
       toast.success('Ancheta socială a fost generată și atașată dosarului!'); fetchDosar();
     } catch (e) { toast.error(e.response?.data?.eroare || 'Eroare la generarea anchetei sociale'); }
@@ -276,7 +299,8 @@ export default function DosarDetaliu() {
   };
 
   const handleMergiLaProgramare = async () => {
-    const docAtasate = dosar.Documents || dosar.documente || dosar.Documente || [];
+    // Excludem semnătura electronică — nu e un document supus aprobării, la fel ca în lista afișată mai sus.
+    const docAtasate = (dosar.Documents || dosar.documente || dosar.Documente || []).filter(d => d.tip_document !== 'semnatura');
     if (docAtasate.length === 0) return toast.warning('Nu există documente atașate la acest dosar!');
     const toateAprobate = docAtasate.every(doc => doc.validat === true || doc.validat === 1);
     if (!toateAprobate) return toast.warning('Vă rugăm să verificați și să APROBAȚI TOATE documentele înainte de a efectua programarea!');
@@ -336,9 +360,23 @@ export default function DosarDetaliu() {
   let descriereCurata = dosar?.descriere || 'Nicio descriere furnizată.';
   descriereCurata = descriereCurata.replace(/\[Date Copil:.*?\]\n\n?/g, '');
   descriereCurata = descriereCurata.replace(/\[Partener:.*?\]\n\n?/g, '');
+  descriereCurata = descriereCurata.replace(/^Dosar de adopție națională\.\n?/, '');
+  descriereCurata = descriereCurata.trim();
+  if (!descriereCurata) descriereCurata = 'Nicio descriere furnizată.';
 
   // Verificări Externe (Ce formulare s-au completat)
-  const areCazier = documenteAtasate.some(d => d.nume_fisier && d.nume_fisier.includes('Cazier'));
+  const areCazierTitular = documenteAtasate.some(d => d.nume_fisier && d.nume_fisier.includes('Cazier') && d.nume_fisier.includes('Titular'));
+  const areCazierSot = documenteAtasate.some(d => d.nume_fisier && d.nume_fisier.includes('Cazier') && d.nume_fisier.includes('Sot'));
+  const caziereNecesare = partenerInfo
+    ? [
+        { label: 'Titular', nume: `${cetatean.prenume} ${cetatean.nume}`, cnp: cetatean.cnp, done: areCazierTitular },
+        { label: 'Soț/Soție', nume: partenerInfo.numeComplet, cnp: partenerInfo.cnp, done: areCazierSot },
+      ]
+    : [{ label: 'Titular', nume: `${cetatean.prenume} ${cetatean.nume}`, cnp: cetatean.cnp, done: areCazierTitular }];
+  const cTitularPolitie = caziereNecesare.find(c => c.label === 'Titular');
+  const cSotPolitie     = caziereNecesare.find(c => c.label === 'Soț/Soție');
+  const cCerutaPolitie  = persoanaCeruta === 'sot' ? cSotPolitie : persoanaCeruta === 'titular' ? cTitularPolitie : null;
+  const toateCaziereleFinalizate = caziereNecesare.every(c => c.done);
   const areDomiciliu = documenteAtasate.some(d => d.nume_fisier && d.nume_fisier.includes('Domiciliu'));
   const areAnchetaAdoptie = documenteAtasate.some(d => d.tip_document === 'ancheta_sociala');
 
@@ -346,25 +384,40 @@ export default function DosarDetaliu() {
   const medicSolsComplete = solicitariMedic.length > 0 && solicitariMedic.every(s => s.status === 'finalizata' || s.status === 'finalizat');
 
   const ascundeFormularulStandard = !isAdoptie && ((isMedic || isReprezentant) ? medicSolsComplete : !!documenteAtasate.find(d => d.tip_document === 'ancheta_sociala'));
-
-  // Calculez starea pt Badges/Text sus
+  const solTitularMedic = solicitariMedic.find(s => !(s.observatii && s.observatii.includes('Soț/Soție')));
+  const solSotMedic     = solicitariMedic.find(s => s.observatii && s.observatii.includes('Soț/Soție'));
+  const solCerutaMedic  = persoanaCeruta === 'sot' ? solSotMedic : persoanaCeruta === 'titular' ? solTitularMedic : null;
+  const solCerutaMedicDone = solCerutaMedic && (solCerutaMedic.status === 'finalizata' || solCerutaMedic.status === 'finalizat');
+  
   let topStatusText = 'În așteptare completare';
   let topStatusBadge = 'incomplet';
 
   if (isMedic && isAdoptie) {
-    if (medicSolsComplete) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
-    else if (solicitariMedic.some(s => s.status === 'finalizata' || s.status === 'finalizat')) { topStatusText = 'Parțial completat'; }
-  } else if (isPolitie && isAdoptie && areCazier) {
-    topStatusText = '✓ Completat'; topStatusBadge = 'aprobat';
+    if (solCerutaMedic) {
+      if (solCerutaMedicDone) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
+      else { topStatusText = 'În așteptare completare'; topStatusBadge = 'incomplet'; }
+    } else if (medicSolsComplete) {
+      topStatusText = '✓ Completat'; topStatusBadge = 'aprobat';
+    }
+  } else if (isPolitie && isAdoptie) {
+    if (cCerutaPolitie) {
+      if (cCerutaPolitie.done) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
+      else { topStatusText = 'În așteptare completare'; topStatusBadge = 'incomplet'; }
+    } else if (toateCaziereleFinalizate) {
+      topStatusText = '✓ Completat'; topStatusBadge = 'aprobat';
+    }
+  } else if (isFunctionarPrimarie && isAdoptie) {
+    if (isEvidenta && areDomiciliu) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
+    else if (isAsistenta && areAnchetaAdoptie) { topStatusText = '✓ Completat'; topStatusBadge = 'aprobat'; }
   } else if (ascundeFormularulStandard) {
     topStatusText = '✓ Completat'; topStatusBadge = 'aprobat';
   }
 
   const arataSignaturePad =
-    (isPolitie && isAdoptie && !areCazier) ||
+    (isPolitie && isAdoptie && (cCerutaPolitie ? !cCerutaPolitie.done : !toateCaziereleFinalizate)) ||
     (isFunctionarPrimarie && isAdoptie && ((isEvidenta && !areDomiciliu) || (isAsistenta && !areAnchetaAdoptie))) ||
     (isFunctionarPrimarie && !isAdoptie && !ascundeFormularulStandard) ||
-    (isMedic && isAdoptie && solicitariMedic.some(s => s.status !== 'finalizata' && s.status !== 'finalizat')) ||
+    (isMedic && isAdoptie && (solCerutaMedic ? !solCerutaMedicDone : solicitariMedic.some(s => s.status !== 'finalizata' && s.status !== 'finalizat'))) ||
     ((isMedic || isReprezentant) && !isAdoptie && !ascundeFormularulStandard);
 
   return (
@@ -436,11 +489,10 @@ export default function DosarDetaliu() {
                       {doc.nume_fisier || DOC_TIP_LABEL[doc.tip_document] || doc.tip_document}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      {doc.validat ? <span className="badge badge-aprobat">✓ Aprobat</span> : <span className="badge badge-incomplet">⏳ Neaprobat</span>}
+                      {doc.tip_document === 'decizie' || doc.validat ? <span className="badge badge-aprobat">✓ Aprobat</span> : <span className="badge badge-incomplet">⏳ Neaprobat</span>}
                       <a href={`${import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000'}/${doc.cale_fisier}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary">👁 Vezi</a>
-                      {!doc.validat && isFunctionar && <button className="btn btn-sm btn-primary" onClick={() => handleAprobaDocument(doc.id)}>✓ Aprobă</button>}
-                      {!doc.validat && isFunctionar && <button 
-  className="btn btn-sm" 
+                      {doc.tip_document !== 'decizie' && !doc.validat && isFunctionar && <button className="btn btn-sm btn-primary" onClick={() => handleAprobaDocument(doc.id)}>✓ Aprobă</button>}
+                      {doc.tip_document !== 'decizie' && !doc.validat && isFunctionar && <button className="btn btn-sm" 
   style={{ background: '#fce8e6', color: '#c5221f', border: 'none', padding: '5px 10px', fontSize: 12 }} 
   onClick={() => { 
     setDocsSuplimentare(prev => prev 
@@ -513,6 +565,13 @@ export default function DosarDetaliu() {
         <p style={{ fontSize: 13.5, color: '#15803d', marginBottom: 16 }}>
           Pentru dosarele de {TIP_LABEL[dosar.tip]}, decizia vă aparține direct, fără programare la comisie.
         </p>
+        <div className="form-group" style={{ marginBottom: 16 }}>
+          <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: 13 }}>✒️ Semnătura dvs. (necesară pentru emiterea hotărârii)</label>
+          <div style={{ border: '2px dashed var(--border)', borderRadius: 8, width: 400, maxWidth: '100%', background: '#fff' }}>
+            <canvas ref={canvasRef} width={400} height={150} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} style={{ cursor: 'crosshair' }} />
+          </div>
+          <button type="button" onClick={curataSemnatura} className="text-link" style={{ marginTop: 5, background: 'none', border: 'none', fontSize: 12 }}>Curăță semnătura</button>
+        </div>
         <div style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-primary" onClick={() => handleActionFunctionar('aprobat')} disabled={savingStatus}>✅ Aprobă și Acordă</button>
           <button className="btn btn-danger" onClick={() => { const m = window.prompt('Introduceți motivul respingerii:'); if (m) handleActionFunctionar('respins'); }} disabled={savingStatus}>❌ Respinge Dosar</button>
@@ -561,6 +620,15 @@ export default function DosarDetaliu() {
                     {comisieActiune === 'respinge' && (
                       <div className="form-group"><label>Motiv respingere *</label><textarea className="form-textarea" value={comisieDate.motiv} onChange={e => setComisieDate({ ...comisieDate, motiv: e.target.value })} /></div>
                     )}
+                    {comisieActiune === 'aproba' && (
+                      <div className="form-group" style={{ marginBottom: 16 }}>
+                        <label style={{ display: 'block', fontWeight: 600, marginBottom: 8, fontSize: 13 }}>✒️ Semnătura dvs. (necesară pentru emiterea documentului)</label>
+                        <div style={{ border: '2px dashed var(--border)', borderRadius: 8, width: 400, maxWidth: '100%', background: '#fff' }}>
+                          <canvas ref={canvasRef} width={400} height={150} onMouseDown={startDrawing} onMouseMove={draw} onMouseUp={stopDrawing} onMouseLeave={stopDrawing} style={{ cursor: 'crosshair' }} />
+                        </div>
+                        <button type="button" onClick={curataSemnatura} className="text-link" style={{ marginTop: 5, background: 'none', border: 'none', fontSize: 12 }}>Curăță semnătura</button>
+                      </div>
+                    )}
                     <div style={{ display: 'flex', gap: 12 }}>
                       <button className="btn btn-primary" onClick={handleFinalizareComisie} disabled={savingStatus}>Confirmă decizia</button>
                       <button className="btn btn-secondary" onClick={() => setComisieActiune('')}>Anulează</button>
@@ -583,28 +651,6 @@ export default function DosarDetaliu() {
           </div>
 
           <div className="card" style={{ padding: 24, borderTop: '4px solid var(--blue)' }}>
-            <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>👤 Date Titular</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, padding: 16, background: 'var(--bg)', borderRadius: 8, marginBottom: 24, fontSize: 13.5 }}>
-              <div>Nume complet: <strong>{cetatean.prenume} {cetatean.nume}</strong></div>
-              <div>CNP: <strong>{cetatean.cnp || '—'}</strong></div>
-              <div>Telefon: <strong>{cetatean.telefon || '—'}</strong></div>
-              <div>Județ: <strong>{cetatean.judet || '—'}</strong></div>
-              <div>Localitate: <strong>{cetatean.oras || '—'}</strong></div>
-              {cetatean.profilCetatean?.adresa_completa && (
-                <div>Stradă / Nr.: <strong>{cetatean.profilCetatean.adresa_completa}</strong></div>
-              )}
-            </div>
-
-            {partenerInfo && (
-              <>
-                <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>👤 Date Soț/Soție (Partener)</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, padding: 16, background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 24, fontSize: 13.5 }}>
-                  <div>Nume complet partener: <strong>{partenerInfo.numeComplet}</strong></div>
-                  <div>CNP Partener: <strong>{partenerInfo.cnp}</strong></div>
-                </div>
-              </>
-            )}
-
             {copilInfo && (
               <>
                 <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 14 }}>👦 Date Elev / Copil</h3>
@@ -616,26 +662,44 @@ export default function DosarDetaliu() {
             )}
 
             {/* ----- SECȚIUNE POLIȚIE (DOAR ADOPȚIE) ----- */}
-            {isPolitie && isAdoptie && (
-              areCazier ? <SuccessBox mesaj="Cazierul judiciar a fost generat și atașat la dosar cu succes." /> : (
+          {isPolitie && isAdoptie && (() => {
+              if (cCerutaPolitie && cCerutaPolitie.done) {
+                return <SuccessBox mesaj={`Cazierul judiciar pentru ${persoanaCeruta === 'sot' ? 'soț/soție' : 'titular'} a fost deja generat și atașat dosarului.`} />;
+              }
+              if (!cCerutaPolitie && toateCaziereleFinalizate) {
+                return <SuccessBox mesaj="Cazierul judiciar a fost generat și atașat la dosar cu succes." />;
+              }
+
+              const cazierCurent = cCerutaPolitie || caziereNecesare.find(c => !c.done);
+              if (!cazierCurent) return null;
+
+              return (
                 <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15, color: '#1e293b' }}>👮 Emitere Cazier Judiciar</h3>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15, color: '#1e293b' }}>👮 Emitere Cazier Judiciar — {cazierCurent.label}</h3>
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>📋 Date cetățean — {cazierCurent.label}</div>
+                    <div style={{ fontSize: 13, color: '#1e293b' }}>👤 <strong>{cazierCurent.nume}</strong> · CNP: {cazierCurent.cnp}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Județ: {cetatean.judet || '-'} · Localitate: {cetatean.oras || '-'}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Adresă: {cetatean.profilCetatean?.adresa_completa || 'Necompletată'}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Telefon: {cetatean.telefon || '-'}</div>
+                  </div>
                   <div className="form-group">
                     <label>Antecedente penale</label>
-                    <select className="form-select" value={formCazier.antecedente} onChange={e => setFormCazier({ ...formCazier, antecedente: e.target.value })}>
+                    <select className="form-select" value={formCazier.antecedente || 'Nu are antecedente penale'} onChange={e => setFormCazier({ ...formCazier, antecedente: e.target.value })}>
                       <option>Nu are antecedente penale</option><option>Are antecedente penale</option>
                     </select>
                   </div>
                   <div className="form-group">
                     <label>Mențiuni suplimentare</label>
-                    <textarea className="form-textarea" placeholder="Mențiuni..." value={formCazier.mentiuni} onChange={e => setFormCazier({ ...formCazier, mentiuni: e.target.value })} />
+                    <textarea className="form-textarea" placeholder="Mențiuni..." value={formCazier.mentiuni || ''} onChange={e => setFormCazier({ ...formCazier, mentiuni: e.target.value })} />
                   </div>
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 15, marginTop: 15, textAlign: 'right' }}>
-                    <button className="btn btn-primary" onClick={() => handleGenerareAdoptie('cazier', { ANTECEDENTE: formCazier.antecedente, MENTIUNI_CAZIER: formCazier.mentiuni })} disabled={savingStatus}>🖨️ Generează Cazier Judiciar</button>
+                    <button className="btn btn-primary" onClick={() => handleGenerareAdoptie('cazier', { ANTECEDENTE: formCazier.antecedente || 'Nu are antecedente penale', MENTIUNI_CAZIER: formCazier.mentiuni || '', NUME_PERSOANA: cazierCurent.nume, PERSOANA_LABEL: cazierCurent.label })} disabled={savingStatus}>🖨️ Generează Cazier pentru {cazierCurent.label}</button>
                   </div>
                 </div>
-              )
-            )}
+              );
+            })()}
+                
 
             {/* ----- SECȚIUNE REPREZENTANT SCOALA ----- */}
             {isReprezentant && (
@@ -709,57 +773,43 @@ export default function DosarDetaliu() {
             )}
 
             {/* ----- SECȚIUNE MEDIC (ADOPȚIE) - UN FORMULAR PE RÂND, BLOCAT DUPĂ COMPLETARE ----- */}
+            {/* ----- SECȚIUNE MEDIC (ADOPȚIE) - fiecare solicitare, complet independentă ----- */}
+            {/* ----- SECȚIUNE MEDIC (ADOPȚIE) - fiecare solicitare complet independentă ----- */}
             {isMedic && isAdoptie && (() => {
-              const toateFinalizate = solicitariMedic.length > 0 && solicitariMedic.every(s => s.status === 'finalizata' || s.status === 'finalizat');
-              if (toateFinalizate) {
+              const solTitular = solicitariMedic.find(s => !(s.observatii && s.observatii.includes('Soț/Soție')));
+              const solSot     = solicitariMedic.find(s => s.observatii && s.observatii.includes('Soț/Soție'));
+              const solCeruta  = persoanaCeruta === 'sot' ? solSot : persoanaCeruta === 'titular' ? solTitular : null;
+              const finalizata = (s) => s && (s.status === 'finalizata' || s.status === 'finalizat');
+
+              if (solCeruta && finalizata(solCeruta)) {
+                return <SuccessBox mesaj={`Certificatul medical pentru ${persoanaCeruta === 'sot' ? 'soț/soție' : 'titular'} a fost deja generat și atașat dosarului.`} />;
+              }
+
+              const toateFinalizate = solicitariMedic.length > 0 && solicitariMedic.every(finalizata);
+              if (!solCeruta && toateFinalizate) {
                 return <SuccessBox mesaj="Ați completat certificatele medicale pentru toți membrii familiei. Dosarul nu mai poate fi modificat." />;
               }
 
-              // Prima solicitare nefinalizată
-              const solCurenta = solicitariMedic.find(s => s.status !== 'finalizata' && s.status !== 'finalizat');
+              const solCurenta = solCeruta || solicitariMedic.find(s => !finalizata(s));
               if (!solCurenta) return null;
 
               const isTitular = solCurenta.observatii && solCurenta.observatii.includes('Titular');
               const numePacientCurent = isTitular ? `${cetatean.prenume} ${cetatean.nume}` : (partenerInfo ? partenerInfo.numeComplet : 'Soțul/Soția (Partenerul)');
               const cnpPacientCurent = isTitular ? cetatean.cnp : (partenerInfo ? partenerInfo.cnp : 'Conform actului de identitate');
               const currentForm = formMedicAdoptie[solCurenta.id] || { boli: 'Fără boli cronice', istoric: 'Fără istoric relevant', apt: 'ESTE' };
-              const solicitariFinalizate = solicitariMedic.filter(s => s.status === 'finalizata' || s.status === 'finalizat');
 
               return (
                 <>
-                  {/* Date complete despre toți pacienții - afișate mereu în partea de sus */}
-                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 20 }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', marginBottom: 12 }}>📋 Persoane pentru care se emit certificate medicale</h4>
-                    {solicitariMedic.map(sol => {
-                      const isTit = sol.observatii && sol.observatii.includes('Titular');
-                      const numePers = isTit ? `${cetatean.prenume} ${cetatean.nume}` : (partenerInfo ? partenerInfo.numeComplet : 'Soțul/Soția');
-                      const cnpPers = isTit ? cetatean.cnp : (partenerInfo ? partenerInfo.cnp : '-');
-                      const fin = sol.status === 'finalizata' || sol.status === 'finalizat';
-                      return (
-                        <div key={sol.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: fin ? '#f0fdf4' : '#fff', borderRadius: 6, border: `1px solid ${fin ? '#bbf7d0' : '#e2e8f0'}`, marginBottom: 8 }}>
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: 13 }}>👤 {numePers}</div>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>CNP: {cnpPers} · {isTit ? 'Titular' : 'Soț/Soție'}</div>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>Adresă: {cetatean.judet} {cetatean.oras}{cetatean.profilCetatean?.adresa_completa ? `, ${cetatean.profilCetatean.adresa_completa}` : ''}</div>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>Telefon: {cetatean.telefon || '-'}</div>
-                          </div>
-                          <span className={`badge badge-${fin ? 'aprobat' : 'incomplet'}`}>{fin ? '✅ Completat' : '⏳ În așteptare'}</span>
-                        </div>
-                      );
-                    })}
+                  <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>📋 Date pacient — {isTitular ? 'Titular' : 'Soț/Soție'}</div>
+                    <div style={{ fontSize: 13, color: '#1e293b' }}>👤 <strong>{numePacientCurent}</strong> · CNP: {cnpPacientCurent}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Județ: {cetatean.judet || '-'} · Localitate: {cetatean.oras || '-'}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Adresă: {cetatean.profilCetatean?.adresa_completa || 'Necompletată'}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Telefon: {cetatean.telefon || '-'}</div>
                   </div>
 
-                  {/* Formularul pentru pacientul curent (primul nefinalizat) */}
                   <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                      <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: 0 }}>🩺 Certificat Medical Adopție</h3>
-                      <span className="badge badge-incomplet">Completați pentru: {numePacientCurent}</span>
-                    </div>
-                    {solicitariFinalizate.length > 0 && (
-                      <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, padding: '8px 12px', marginBottom: 15, fontSize: 13, color: '#166534' }}>
-                        ✅ Certificate emise: {solicitariFinalizate.length} din {solicitariMedic.length}. Completați acum pentru <strong>{numePacientCurent}</strong>.
-                      </div>
-                    )}
+                    <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', margin: '0 0 15px 0' }}>🩺 Certificat Medical Adopție — {isTitular ? 'Titular' : 'Soț/Soție'}</h3>
                     <div className="form-group">
                       <label>Boli cronice / Afecțiuni psihiatrice</label>
                       <textarea className="form-textarea" value={currentForm.boli} onChange={e => setFormMedic(solCurenta.id, 'boli', e.target.value)} />
@@ -866,13 +916,15 @@ export default function DosarDetaliu() {
                 <div style={{ background: '#f8fafc', padding: 20, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 15 }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 15 }}>🏠 Verificare Domiciliu (Evidența Persoanelor)</h3>
                   <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>📋 Date cetățean</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>📋 Date cetățeni (domiciliu comun)</div>
                     <div style={{ fontSize: 13, color: '#1e293b' }}>👤 <strong>{cetatean.prenume} {cetatean.nume}</strong> · CNP: {cetatean.cnp}</div>
-                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>Județ: {cetatean.judet} · Localitate: {cetatean.oras}</div>
-                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Adresă declarată: <strong>{cetatean.profilCetatean?.adresa_completa || 'Necompletată'}</strong></div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Județ: {cetatean.judet} · Localitate: {cetatean.oras}</div>
+                    <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Adresă: <strong>{cetatean.profilCetatean?.adresa_completa || 'Necompletată — verificați profilul cetățeanului'}</strong></div>
                     {partenerInfo && (
-                      <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid #bfdbfe' }}>
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid #bfdbfe' }}>
                         <div style={{ fontSize: 13, color: '#1e293b' }}>👤 <strong>{partenerInfo.numeComplet}</strong> · CNP: {partenerInfo.cnp} · Soț/Soție</div>
+                        <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Județ: {cetatean.judet} · Localitate: {cetatean.oras}</div>
+                        <div style={{ fontSize: 13, color: '#64748b', marginTop: 2 }}>Adresă: <strong>{cetatean.profilCetatean?.adresa_completa || 'Necompletată'}</strong> (domiciliu comun cu titularul)</div>
                       </div>
                     )}
                   </div>
@@ -888,8 +940,13 @@ export default function DosarDetaliu() {
                     <textarea className="form-textarea" value={formDomiciliu.detalii} onChange={e => setFormDomiciliu({ ...formDomiciliu, detalii: e.target.value })} />
                   </div>
                   <div style={{ borderTop: '1px solid var(--border)', paddingTop: 15, marginTop: 15, textAlign: 'right' }}>
-                    <button className="btn btn-primary" onClick={() => handleGenerareAdoptie('domiciliu', { ADRESA_COMPLETA: cetatean.profilCetatean?.adresa_completa || '-', CONFIRMARE_ADRESA: formDomiciliu.confirmare, DETALII_ADRESA: formDomiciliu.detalii })} disabled={savingStatus}>🖨️ Certifică Domiciliul</button>
-                  </div>
+                    <button className="btn btn-primary" onClick={() => handleGenerareAdoptie('domiciliu', {
+                      ADRESA_COMPLETA: cetatean.profilCetatean?.adresa_completa || '-',
+                      BLOC_SOT: partenerInfo ? `<p style="text-align: justify; margin-top: 14px;">Aceeași adresă este confirmată și pentru soțul/soția, <strong>${partenerInfo.numeComplet}</strong> (CNP: ${partenerInfo.cnp}).</p>` : '',
+                      CONFIRMARE_ADRESA: formDomiciliu.confirmare,
+                      DETALII_ADRESA: formDomiciliu.detalii
+                    })} disabled={savingStatus}>🖨️ Certifică Domiciliul</button>
+                    </div>
                 </div>
               )
             )}
@@ -946,9 +1003,8 @@ export default function DosarDetaliu() {
                       <div className="form-group"><label>Motivația pentru adopție</label><textarea className="form-textarea" rows="2" value={formAnchetaAdoptie.motivatie} onChange={e => setFormAnchetaAdoptie({ ...formAnchetaAdoptie, motivatie: e.target.value })} /></div>
                       <div className="form-group"><label>Concluzie anchetă</label><select className="form-select" value={formAnchetaAdoptie.concluzie} onChange={e => setFormAnchetaAdoptie({ ...formAnchetaAdoptie, concluzie: e.target.value })}><option>Apt pentru adopție</option><option>Inapt pentru adopție</option><option>Necesită evaluare suplimentară</option></select></div>
                     </div>
-
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 15, marginTop: 15, textAlign: 'right' }}>
-                      <button className="btn btn-primary" onClick={() => handleGenerareAdoptie('ancheta_adoptie', { CONDITII_LOCATIVE: formAnchetaAdoptie.locuinte, VENITURI: formAnchetaAdoptie.venituri, ISTORIC_FAMILIAL: formAnchetaAdoptie.istoric, MOTIVATIE: formAnchetaAdoptie.motivatie, CONCLUZIE_ANCHETA: formAnchetaAdoptie.concluzie })} disabled={savingStatus}>🖨️ Generează Anchetă Adopție</button>
+                      <button className="btn btn-primary" onClick={finalizeazaAnchetaPrimarie} disabled={savingStatus}>🖨️ Generare Anchetă Socială</button>
                     </div>
                   </div>
                 </>

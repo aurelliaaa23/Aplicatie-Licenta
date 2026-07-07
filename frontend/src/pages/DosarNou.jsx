@@ -274,7 +274,10 @@ export default function DosarNou() {
     setLoading(true);
     try {
       let payloadDescriere = descriere;
-      if (isCopil) payloadDescriere = `[Date Copil: ${dateCopil.nume} ${dateCopil.prenume}, CNP: ${dateCopil.cnp}]\n\n${descriere || 'Dosar pentru acordare beneficiu social copii'}`;
+      if (isCopil) {
+        const partenerStrCopil = dateFamilie.tipFamilie === 'integrala' && dateFamilie.numeSot ? `[Partener: ${dateFamilie.numeSot}, CNP: ${dateFamilie.cnpSot}]\n` : '';
+        payloadDescriere = `[Date Copil: ${dateCopil.nume} ${dateCopil.prenume}, CNP: ${dateCopil.cnp}]\n${partenerStrCopil}\n${descriere || 'Dosar pentru acordare beneficiu social copii'}`;
+      }
       if (isAdoptie) {
   const partenerStr = dateFamilie.tipFamilie === 'integrala' ? `[Partener: ${dateFamilie.numeSot}, CNP: ${dateFamilie.cnpSot}]\n` : '';
   payloadDescriere = `Dosar de adopție națională.\n${partenerStr}\n${descriere}`;
@@ -317,10 +320,10 @@ export default function DosarNou() {
           await api.post('/documente/genereaza-cerere-handicap', { dosar_id: dosar.id, date_cerere: dateCerere, semnatura_base64: sigData });
           await new Promise(resolve => setTimeout(resolve, 500));
         } catch (err) {}
-        
+
         const mediciDeNotificat = [];
-        if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, nume: medicFam.medic, tip: 'Medic de Familie' });
-        referate.forEach(r => { if (r.medic) mediciDeNotificat.push({ id: r.medic, nume: r.medic, tip: `Medic Specialist` }); });
+        if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, nume: medicFam.medic, tip: 'Medic de Familie', nume_pacient: `${utilizator?.prenume} ${utilizator?.nume}` });
+        referate.forEach(r => { if (r.medic) mediciDeNotificat.push({ id: r.medic, nume: r.medic, tip: 'Medic Specialist', nume_pacient: `${utilizator?.prenume} ${utilizator?.nume}` }); });
         if (mediciDeNotificat.length > 0) {
           try { await api.post(`/dosare/${dosar.id}/notifica-medici`, { medici: mediciDeNotificat }); } catch (err) {}
         }
@@ -345,11 +348,9 @@ export default function DosarNou() {
          } catch (err) { console.error("Eroare la generare cerere adoptie", err); }
          
          const mediciDeNotificat = [];
-         if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Titular)' });
+         if (medicFam.medic) mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Titular)', nume_pacient: `${utilizator?.prenume} ${utilizator?.nume}` });
          if (dateFamilie.tipFamilie === 'integrala' && medicFam.medic) {
-            // Se presupune același medic de familie pentru ambii — se creează totuși o solicitare
-            // SEPARATĂ (cu observație "Soț/Soție"), astfel încât medicul completează 2 formulare distincte.
-            mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Soț/Soție)' });
+            mediciDeNotificat.push({ id: medicFam.medic, tip: 'Adeverință medicală adopție (Soț/Soție)', nume_pacient: dateFamilie.numeSot || 'Soț/Soție' });
          }
          
          if (mediciDeNotificat.length > 0) {

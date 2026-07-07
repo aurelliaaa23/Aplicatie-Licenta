@@ -4,6 +4,7 @@ import Layout from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../hooks/useSocket';
 import api from '../services/api';
+import StatisticiAdmin from './StatisticiAdmin';
 
 function Ico({ path, size = 20, color }) {
   return (
@@ -64,6 +65,17 @@ function NotifPanel({ notificari, onClose, onMarkAll }) {
 
 export default function Dashboard() {
   const { utilizator } = useAuth();
+  const rolPrecoce = utilizator?.rol;
+
+  // Administratorul are un panou complet separat, cu statistici — nu lista de dosare.
+  if (rolPrecoce === 'administrator') {
+    return (
+      <Layout title="Panou principal">
+        <StatisticiAdmin />
+      </Layout>
+    );
+  }
+
   const [dosare, setDosare]         = useState([]);
   const [notificari, setNotificari] = useState([]);
   const [showNotif, setShowNotif]   = useState(false);
@@ -95,15 +107,15 @@ export default function Dashboard() {
       } else if (rol === 'reprezentant_școală') {
         const { data } = await api.get('/dosare/reprezentant/solicitari');
         setDosare(data);
+      } else if (rol === 'funcționar_poliție') {
+        const { data } = await api.get('/dosare/politie/solicitari');
+        setDosare(data);
       } else {
         const { data } = await api.get('/dosare');
         
         if (rol === 'funcționar_primărie') {
-          // Primăria vede dosarele de Handicap și Adopție
-          setDosare(data.filter(d => ['certificat_handicap', 'adoptie'].includes(d.tip)));
-        } else if (rol === 'funcționar_poliție') {
-          // Poliția vede STRICT dosarele de Adopție
-          setDosare(data.filter(d => d.tip === 'adoptie'));
+          const tipuriPermise = isEvidentaPrimarie ? ['adoptie'] : ['certificat_handicap', 'adoptie'];
+          setDosare(data.filter(d => tipuriPermise.includes(d.tip)));
         } else {
           // Restul (Cetățean, Funcționar DGASPC, Manager etc.) văd dosarele lor conform backend-ului
           setDosare(data);
@@ -131,7 +143,7 @@ export default function Dashboard() {
 
   let stats = { total: dosare.length, active: 0, aprobate: 0, urgente: 0, incomplet: 0, completate: 0, respinse: 0 };
 
-  if (rol === 'medic' || rol === 'reprezentant_școală') {
+  if (rol === 'medic' || rol === 'reprezentant_școală' || rol === 'funcționar_poliție') {
     stats.active = dosare.filter((d) => d.status !== 'finalizata' && d.status !== 'finalizat').length;
     stats.completate = dosare.filter((d) => d.status === 'finalizata' || d.status === 'finalizat').length;
   } else if (rol === 'funcționar_primărie') {
@@ -201,11 +213,11 @@ export default function Dashboard() {
       </div>
 
       <div className="stats-grid">
-        <StatCard icon={<Ico path="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />} iconClass="blue" value={stats.total} label={['medic', 'reprezentant_școală'].includes(rol) ? "Total solicitări" : "Total dosare"} />
+        <StatCard icon={<Ico path="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z" />} iconClass="blue" value={stats.total} label={['medic', 'reprezentant_școală', 'funcționar_poliție'].includes(rol) ? "Total solicitări" : "Total dosare"} />
         <StatCard icon={<Ico path="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10" />} iconClass="teal" value={stats.active} label="Dosare active" />
         <StatCard icon={<Ico path="M22 11.08V12a10 10 0 11-5.93-9.14|M22 4L12 14.01l-3-3" />} iconClass="green" 
-          value={(['medic', 'funcționar_primărie', 'reprezentant_școală'].includes(rol)) ? stats.completate : stats.aprobate} 
-          label={(['medic', 'funcționar_primărie', 'reprezentant_școală'].includes(rol)) ? "Completate" : "Aprobate"} />
+          value={(['medic', 'funcționar_primărie', 'reprezentant_școală', 'funcționar_poliție'].includes(rol)) ? stats.completate : stats.aprobate} 
+          label={(['medic', 'funcționar_primărie', 'reprezentant_școală', 'funcționar_poliție'].includes(rol)) ? "Completate" : "Aprobate"} />
         <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="warn" value={stats.urgente} label="Urgente" />
         {(rol === 'funcționar' || rol === 'manager') && (
           <StatCard icon={<Ico path="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z|M12 9v4|M12 17h.01" />} iconClass="red" value={stats.incomplet} label="Necesită completări" />
@@ -273,18 +285,28 @@ export default function Dashboard() {
                 <tr>
                   <th>Nr. dosar</th>
                   <th>Tip</th>
-                  {rol !== 'cetățean' && <th>{['medic', 'reprezentant_școală'].includes(rol) ? 'Cetățean / Elev' : 'Cetățean'}</th>}
-                  {!['medic', 'reprezentant_școală'].includes(rol) && <th>Prioritate</th>}
+                  {rol !== 'cetățean' && <th>{['medic', 'reprezentant_școală', 'funcționar_poliție'].includes(rol) ? 'Cetățean' : 'Cetățean'}</th>}
+                  {!['medic', 'reprezentant_școală', 'funcționar_poliție'].includes(rol) && <th>Prioritate</th>}
                   <th>Status</th>
-                  <th>{['medic', 'funcționar_primărie', 'reprezentant_școală'].includes(rol) ? 'Data solicitării' : 'Data depunerii'}</th>
+                  <th>{['medic', 'funcționar_primărie', 'reprezentant_școală', 'funcționar_poliție'].includes(rol) ? 'Data solicitării' : 'Data depunerii'}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {dosareRecente.map((d) => {
-                  const isExternalCollab = ['medic', 'reprezentant_școală'].includes(rol);
+                  const isExternalCollab = ['medic', 'reprezentant_școală', 'funcționar_poliție'].includes(rol);
                   const dosarObj = isExternalCollab ? (d.dosar || d.Dosar || {}) : d;
                   const cetateanObj = d.cetatean || d.Utilizator || {};
+                  const esteSot = d.observatii && d.observatii.includes('Soț/Soție');
+                  let numeAfisat = `${cetateanObj?.prenume || ''} ${cetateanObj?.nume || ''}`.trim();
+                  if (esteSot) {
+                    if (d.numePartener) {
+                      numeAfisat = d.numePartener;
+                    } else if (dosarObj?.descriere && dosarObj.descriere.includes('[Partener:')) {
+                      const match = dosarObj.descriere.match(/\[Partener: (.*?), CNP: .*?\]/);
+                      if (match) numeAfisat = match[1];
+                    }
+                  }
                   
                   return (
                     <tr key={d.id}>
@@ -298,10 +320,10 @@ export default function Dashboard() {
                       </td>
                       {rol !== 'cetățean' && (
                         <td style={{ fontSize: 13 }}>
-                          {cetateanObj?.prenume} {cetateanObj?.nume}
+                          {numeAfisat}
                         </td>
                       )}
-                      {!['medic', 'reprezentant_școală'].includes(rol) && (
+                      {!['medic', 'reprezentant_școală', 'funcționar_poliție'].includes(rol) && (
                         <td>
                           {d.prioritate === 'urgent'
                             ? <span style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '2px 8px', borderRadius: 20, fontSize: 11.5, fontWeight: 600 }}>🔴 Urgent</span>
@@ -329,7 +351,7 @@ export default function Dashboard() {
                         {afiseazaData(d.creat_la, d.createdAt)}
                       </td>
                       <td>
-                        <Link to={`/dosar/${isExternalCollab ? d.dosar_id : d.id}`} className="btn btn-ghost btn-sm">
+                     <Link to={`/dosar/${isExternalCollab ? d.dosar_id : d.id}${['funcționar_poliție', 'medic'].includes(rol) ? `?persoana=${esteSot ? 'sot' : 'titular'}` : ''}`} className={`btn btn-sm ${d.status === 'finalizata' || d.status === 'finalizat' ? 'btn-ghost' : 'btn-primary'}`}>
                           Detalii
                         </Link>
                       </td>

@@ -14,11 +14,7 @@ const localizer = momentLocalizer(moment);
 const TIP_COMISIE_COLOR = {
   protectia_copilului: '#2563eb',
   adoptii:             '#7c3aed',
-  evaluare_adulti:     '#0d9488',
-  handicap:            '#d97706',
-  certificat_handicap: '#d97706', // Mapare pentru dosare
-  adoptie:             '#7c3aed',
-  plasament:           '#2563eb',
+  evaluare_adulti:     '#0d9488', // Mapare pentru dosare
   alocatie:            '#2563eb',  // ← corectat: era teal, acum albastru (aceeași categorie ca protectia_copilului)
   indemnizatie:        '#2563eb'   // ← adăugat: lipsea complet din hartă
 };
@@ -27,10 +23,6 @@ const TIP_COMISIE_LABEL = {
   protectia_copilului: 'Protecția copilului',
   adoptii:             'Adopții',
   evaluare_adulti:     'Evaluare adulți',
-  handicap:            'Handicap',
-  certificat_handicap: 'Handicap',
-  adoptie:             'Adopții',
-  plasament:           'Protecția copilului',
   alocatie:            'Protecția copilului',
   indemnizatie:        'Protecția copilului',
   alte_servicii:       'General'
@@ -39,7 +31,7 @@ const TIP_COMISIE_LABEL = {
 // Doar categoriile unice, distincte — pentru legendă și pentru dropdown-ul de creare programare.
 // (TIP_COMISIE_LABEL/COLOR de mai sus rămân complete, cu alias-uri, pentru căutarea culorii/etichetei
 // oricărui tip_comisie sau tip_dosar existent în date.)
-const TIP_COMISIE_CANONICE = ['protectia_copilului', 'adoptii', 'evaluare_adulti', 'handicap', 'alte_servicii'];
+const TIP_COMISIE_CANONICE = ['protectia_copilului', 'adoptii', 'evaluare_adulti', 'alte_servicii'];
 
 const messages_ro = {
   today: 'Azi', previous: '◀', next: '▶', month: 'Lună', week: 'Săptămână', day: 'Zi', agenda: 'Agendă',
@@ -95,16 +87,18 @@ export default function Calendar() {
   };
 
   const mapEvent = (p) => {
-    const tipLabel = TIP_COMISIE_LABEL[p.tip_comisie]
-      || p.detalii?.replace('Comisie: ', '')
-      || 'Programare comisie';
+    const tipMatch = p.detalii?.match(/^\[TIP:([a-z_]+)\]/);
+    const tipComisie = tipMatch ? tipMatch[1] : null;
+    const durMatch = p.detalii?.match(/dura (\d+) minute/);
+    const durata = durMatch ? parseInt(durMatch[1], 10) : 60;
+    const tipLabel = TIP_COMISIE_LABEL[tipComisie] || 'Programare comisie';
     return {
       id:    p.id,
       title: tipLabel,
-      start: new Date(p.data_ora_programare || p.data_ora),
-      end:   new Date(new Date(p.data_ora_programare || p.data_ora).getTime() + (p.durata_minute || 60) * 60000),
-      resource: p,
-      color: TIP_COMISIE_COLOR[p.tip_comisie] || '#2563eb',
+      start: new Date(p.data_ora_programare),
+      end:   new Date(new Date(p.data_ora_programare).getTime() + durata * 60000),
+      resource: { ...p, tip_comisie: tipComisie },
+      color: TIP_COMISIE_COLOR[tipComisie] || '#2563eb',
     };
   };
 
@@ -131,8 +125,8 @@ export default function Calendar() {
 
   const anuleazaProgramare = async (id) => {
     try {
-      await api.patch(`/programari/${id}/status`, { status: 'anulat' });
-      toast.info('Programare anulată');
+      await api.delete(`/programari/${id}`);
+      toast.info('Programare anulată și ștearsă din calendar');
       setSelected(null);
       fetchProgramari();
     } catch {
@@ -211,13 +205,13 @@ export default function Calendar() {
                 <div style={{ display: 'inline-block', background: TIP_COMISIE_COLOR[selected.tip_comisie] || '#2563eb', color: 'white', padding: '3px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, marginBottom: 10 }}>
                   {TIP_COMISIE_LABEL[selected.tip_comisie] || 'Comisie'}
                 </div>
-                <span className={`badge badge-${selected.status}`} style={{ marginLeft: 8 }}>
-                  {selected.status === 'programat' ? 'Programat' : selected.status === 'realizat' ? 'Realizat' : 'Anulat'}
+                <span className={`badge badge-${new Date(selected.data_ora_programare) < new Date() ? 'aprobat' : 'in_analiza'}`} style={{ marginLeft: 8 }}>
+                  {new Date(selected.data_ora_programare) < new Date() ? 'Realizat' : 'Programat'}
                 </span>
               </div>
               {[
-                ['📅 Data și ora', moment(selected.data_ora).format('DD MMMM YYYY, HH:mm')],
-                ['📍 Locație & ⏱ Durată', `${selected.detalii} `],
+                ['📅 Data și ora', moment(selected.data_ora_programare).format('DD MMMM YYYY, HH:mm')],
+                ['📍 Locație & ⏱ Durată', (selected.detalii || '').replace(/^\[TIP:[a-z_]+\]\s*/, '')],
                 ['📂 Dosar', selected.Dosar?.numar_dosar || `#${selected.dosar_id}`],
               ].map(([label, val]) => (
                 <div key={label} style={{ borderBottom: '1px solid var(--border)', paddingBottom: 10 }}>
@@ -225,7 +219,7 @@ export default function Calendar() {
                   <div style={{ fontSize: 13.5, color: 'var(--text-1)', fontWeight: 500 }}>{val}</div>
                 </div>
               ))}
-              {selected.status === 'programat' && !esteCetatean && (
+              {new Date(selected.data_ora_programare) > new Date() && !esteCetatean && (
                 <button className="btn btn-danger btn-sm" style={{ marginTop: 4 }}
                   onClick={() => anuleazaProgramare(selected.id)}>
                   Anulează programarea

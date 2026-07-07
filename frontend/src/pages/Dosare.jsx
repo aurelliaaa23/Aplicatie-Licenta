@@ -39,8 +39,10 @@ export default function Dosare() {
   const isEvidenta  = deptUser.includes('evidenț') || deptUser.includes('evident') || deptUser.includes('persoane');
 
   useEffect(() => {
-    if (isColaborator) {
-      const endpoint = isMedic ? '/dosare/medici/solicitari' : '/dosare/reprezentant/solicitari';
+    if (isColaborator || isPolitie) {
+      const endpoint = isMedic ? '/dosare/medici/solicitari'
+                      : isPolitie ? '/dosare/politie/solicitari'
+                      : '/dosare/reprezentant/solicitari';
       api.get(endpoint)
         .then(({ data }) => setSolicitari(data))
         .catch(console.error)
@@ -49,7 +51,10 @@ export default function Dosare() {
       api.get('/dosare')
         .then(({ data }) => {
            if (isPrimarie) {
-              setDosare(data.filter(d => ['certificat_handicap', 'adoptie'].includes(d.tip)));
+              // Evidența Persoanelor are task DOAR la adopție (Atestare Domiciliu).
+              // Asistența Socială are task la handicap ȘI la adopție (Anchetă Socială).
+              const tipuriPermise = isEvidenta ? ['adoptie'] : ['certificat_handicap', 'adoptie'];
+              setDosare(data.filter(d => tipuriPermise.includes(d.tip)));
            } else if (isPolitie) {
               setDosare(data.filter(d => d.tip === 'adoptie'));
            } else {
@@ -59,7 +64,7 @@ export default function Dosare() {
         .catch(console.error)
         .finally(() => setLoading(false));
     }
-  }, [isColaborator, isMedic, isPrimarie]);
+  }, [isColaborator, isMedic, isPrimarie, isEvidenta]);
 
   const resetFiltru = () => {
     setCautare(''); setFiltrStatus(''); setFiltrTip(''); setFiltrPrioritate('');
@@ -91,14 +96,16 @@ export default function Dosare() {
       cetateanObj?.prenume?.toLowerCase().includes(text);
   });
 
-  const titluPagina = isMedic ? 'Solicitări Medicale' 
+ const titluPagina = isMedic ? 'Solicitări Medicale' 
                     : isReprezentant ? 'Solicitări Adeverințe Școlare'
+                    : isPolitie ? 'Solicitări Cazier Judiciar'
                     : isPrimarie ? 'Dosare pentru Anchetă Socială' 
                     : 'Dosare DGASPC';
 
-  const subtitlu = isColaborator
+  const subtitlu = (isColaborator || isPolitie)
     ? `${solicitari.length} solicitări | ${filtrateSolicitari.length} afișate`
     : `${dosare.length} dosare | ${filtrateDosare.length} afișate`;
+
 
   const afiseazaData = (dataStr1, dataStr2) => {
     const d = dataStr1 || dataStr2;
@@ -107,10 +114,12 @@ export default function Dosare() {
     return isNaN(dateObj.getTime()) ? '-' : dateObj.toLocaleDateString('ro-RO');
   };
 
+  // Dedup DOAR pe id-ul solicitării, nu pe dosar — un dosar de adopție integrală
+  // are legitim 2 solicitări (Titular + Soț/Soție) și trebuie să apară amândouă.
   const solicitariUnice = filtrateSolicitari.reduce((acc, s) => {
-  if (!acc.find(x => x.dosar_id === s.dosar_id)) acc.push(s);
-  return acc;
-}, []);
+    if (!acc.find(x => x.id === s.id)) acc.push(s);
+    return acc;
+  }, []);
 
   return (
     <Layout title={titluPagina}>
@@ -169,7 +178,7 @@ export default function Dosare() {
           <div style={{ padding: 50, textAlign: 'center' }}>
             <div className="loading-spinner" style={{ margin: '0 auto', width: 32, height: 32, borderColor: 'var(--border)', borderTopColor: 'var(--blue)' }} />
           </div>
-        ) : isColaborator ? (
+        ) : (isColaborator || isPolitie) ? (
           filtrateSolicitari.length === 0 ? (
             <div className="empty-state">
               <h3>Nicio solicitare de completat</h3>
@@ -181,7 +190,7 @@ export default function Dosare() {
                 <thead>
                   <tr>
                     <th>Nr. dosar</th>
-                    <th>Cetățean / Copil</th>
+                    <th>Cetățean</th>
                     <th>Tip solicitare</th>
                     <th>Status Solicitare</th>
                     <th>Data</th>
@@ -193,12 +202,24 @@ export default function Dosare() {
                   {solicitariUnice.map((s) => {
                     const dosarObj = s.dosar || s.Dosar || {};
                     const cetateanObj = s.cetatean || s.Utilizator || {};
+                    const esteSot = s.observatii && s.observatii.includes('Soț/Soție');
+                    let numeAfisat = `${cetateanObj?.prenume || ''} ${cetateanObj?.nume || ''}`.trim();
+                    let subAfisat = cetateanObj?.email || '';
+                    if (esteSot) {
+                      subAfisat = 'Soț/Soție';
+                      if (s.numePartener) {
+                        numeAfisat = s.numePartener;
+                      } else if (dosarObj?.descriere && dosarObj.descriere.includes('[Partener:')) {
+                        const match = dosarObj.descriere.match(/\[Partener: (.*?), CNP: .*?\]/);
+                        if (match) numeAfisat = match[1];
+                      }
+                    }
                     return (
                       <tr key={s.id}>
                         <td><span style={{ fontFamily: 'DM Mono, monospace', fontSize: 12.5, color: 'var(--blue)', fontWeight: 500 }}>{dosarObj?.numar_dosar || `#${s.dosar_id}`}</span></td>
                         <td>
-                          <div style={{ fontSize: 13, fontWeight: 500 }}>{cetateanObj?.prenume} {cetateanObj?.nume}</div>
-                          <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{cetateanObj?.email}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500 }}>{numeAfisat}</div>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-3)' }}>{subAfisat}</div>
                         </td>
                         <td style={{ fontSize: 13 }}>
                           <strong>{TIP_LABEL[dosarObj.tip] || dosarObj.tip || 'Dosar'}</strong><br/>
@@ -207,9 +228,11 @@ export default function Dosare() {
                         <td><span className={`badge badge-${s.status === 'finalizata' || s.status === 'finalizat' ? 'aprobat' : 'incomplet'}`}>{s.status === 'finalizata' || s.status === 'finalizat' ? '✅ Completat' : 'În așteptare'}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(s.creat_la, s.createdAt)}</td>
                         <td>
-                          <Link to={`/dosar/${s.dosar_id}`} className={`btn btn-sm ${s.status === 'finalizata' || s.status === 'finalizat' ? 'btn-ghost' : 'btn-primary'}`}>
+                          
+                          <Link to={`/dosar/${s.dosar_id}${(isPolitie || isMedic) ? `?persoana=${esteSot ? 'sot' : 'titular'}` : ''}`} className={`btn btn-sm ${s.status === 'finalizata' || s.status === 'finalizat' ? 'btn-ghost' : 'btn-primary'}`}>
                             {s.status === 'finalizata' || s.status === 'finalizat' ? 'Vezi dosar' : '✏️ Completează'}
                           </Link>
+            
                         </td>
                       </tr>
                     );
@@ -256,7 +279,9 @@ export default function Dosare() {
                         </td>
                         <td style={{ fontSize: 13 }}>
                           <strong>{TIP_LABEL[d.tip] || d.tip || '-'}</strong><br/>
-                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>Anchetă Socială</span>
+                          <span style={{ fontSize: 11.5, color: 'var(--text-3)' }}>
+                            {(d.tip === 'adoptie' && isEvidenta) ? 'Atestare Domiciliu' : 'Anchetă Socială'}
+                          </span>
                         </td>
                         <td><span className={`badge badge-${areAncheta ? 'aprobat' : 'incomplet'}`}>{areAncheta ? '✅ Completat' : 'În așteptare'}</span></td>
                         <td style={{ fontSize: 12.5, color: 'var(--text-2)' }}>{afiseazaData(d.creat_la, d.createdAt)}</td>

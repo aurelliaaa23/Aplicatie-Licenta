@@ -48,7 +48,7 @@ router.post('/mesaj', verificaToken, async (req, res) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents,
-          generationConfig: { temperature: 0.4, maxOutputTokens: 500 },
+          generationConfig: { temperature: 0.4, maxOutputTokens: 2500 },
         }),
       }
     );

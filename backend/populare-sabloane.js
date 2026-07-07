@@ -49,7 +49,8 @@ function semnaturaMedic(tipMedic) {
   return `
     <div style="text-align:right; margin-top:40px;">
       <p style="font-size:12.5px; color:#475569; margin:0 0 4px 0;">Data completării: <strong>{{DATA_CURENTA}}</strong></p>
-      <p style="font-size:12.5px; color:#475569; margin:0 0 6px 0;"><strong>Semnătură ${tipMedic}:</strong></p>
+      <p style="font-size:12.5px; color:#475569; margin:0 0 2px 0;"><strong>Semnătură ${tipMedic}:</strong></p>
+      <p style="font-size:13px; color:#16244a; font-weight:700; margin:0 0 6px 0;">{{NUME_INTOCMITOR}}</p>
       <img src="{{SEMNATURA_BASE64}}" width="150" style="border-bottom:1px solid #16244a; padding-bottom:4px;" />
     </div>`;
 }
@@ -60,7 +61,7 @@ function semnaturaFunctionar() {
     <div style="text-align:right; margin-top:60px; border-top:1px solid #e2e8f0; padding-top:20px;">
       <p style="font-size:11.5px; color:#94a3b8; margin:0 0 4px 0; text-transform:uppercase; letter-spacing:0.3px;">Funcționar responsabil de caz</p>
       <p style="font-size:14px; font-weight:700; color:#16244a; margin:0 0 8px 0;">{{NUME_FUNCTIONAR}}</p>
-      <p style="font-size:11px; color:#94a3b8; margin:0 0 18px 0;">Semnătură electronică validată în platformă</p>
+      <img src="{{SEMNATURA_FUNCTIONAR_BASE64}}" width="140" style="border-bottom:1px solid #16244a; padding-bottom:4px; margin-bottom:8px;" />
       <p style="font-size:12.5px; color:#475569; margin:0;">Data emiterii: <strong>{{DATA_CURENTA}}</strong></p>
     </div>`;
 }
@@ -226,17 +227,14 @@ async function populeaza() {
             ${titlu('Cerere', 'pentru acordarea Alocației de Stat pentru Copii')}
             <p><strong>DOMNULE DIRECTOR,</strong></p>
             <p style="text-align: justify; text-indent: 40px;">
-              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, posesor al actului de identitate seria <strong>{{SERIE_CI}}</strong> nr. <strong>{{NUMAR_CI}}</strong>, cu domiciliul în județul <strong>{{JUDET}}</strong>, localitatea <strong>{{ORAS}}</strong>, str. <strong>{{STRADA}}</strong>, telefon <strong>{{TELEFON}}</strong>, e-mail <strong>{{EMAIL}}</strong>, în calitate de reprezentant legal, solicit prin prezenta acordarea alocației de stat pentru copilul:
+              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, posesor al actului de identitate seria <strong>{{SERIE_CI}}</strong> nr. <strong>{{NUMAR_CI}}</strong>, cu domiciliul în județul <strong>{{JUDET}}</strong>, localitatea <strong>{{ORAS}}</strong>, str. <strong>{{STRADA}}</strong>, telefon <strong>{{TELEFON}}</strong>, e-mail <strong>{{EMAIL}}</strong>,{{BLOC_PARTENER}} în calitate de reprezentant legal, solicit prin prezenta acordarea alocației de stat pentru copilul:
             </p>
             <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; padding: 14px 16px; margin: 18px 0;">
               <p style="margin: 4px 0;"><strong>Nume și Prenume Copil:</strong> {{NUME_COPIL}} {{PRENUME_COPIL}}</p>
               <p style="margin: 4px 0;"><strong>CNP Copil:</strong> {{CNP_COPIL}}</p>
             </div>
             <p style="text-align: justify; text-indent: 40px;">
-              Date referitoare la celălalt părinte (dacă este cazul): <strong>{{NUME_SOT}}</strong> (CNP: <strong>{{CNP_SOT}}</strong>).
-            </p>
-            <p style="text-align: justify; text-indent: 40px;">
-              Declar pe proprie răspundere că datele declarate în prezenta cerere sunt corecte și complete. Sunt de acord ca datele mele cu caracter personal să fie prelucrate de DGASPC în conformitate cu reglementările GDPR.
+              Declar pe propria răspundere că datele introduse sunt corecte și corespund cu realitatea. Sunt de acord cu prelucrarea datelor cu caracter personal de către DGASPC conform normelor GDPR. Declar pe propria răspundere că sunt cetățean al Uniunii Europene.
             </p>
             ${semnaturaSolicitant()}
           ${WRAP_CLOSE}
@@ -253,17 +251,20 @@ async function populeaza() {
             ${titlu('Cerere', 'pentru acordarea Indemnizației de Creștere a Copilului (0-2 ani)')}
             <p><strong>DOMNULE DIRECTOR,</strong></p>
             <p style="text-align: justify; text-indent: 40px;">
-              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, domiciliat/ă în <strong>{{JUDET}}, {{ORAS}}, {{STRADA}}</strong>, solicit acordarea indemnizației lunare pentru creșterea copilului:
+              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, domiciliat/ă în <strong>{{JUDET}}, {{ORAS}}, {{STRADA}}</strong>, e-mail <strong>{{EMAIL}}</strong>,{{BLOC_PARTENER}} solicit acordarea indemnizației lunare pentru creșterea copilului:
             </p>
             <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; padding: 14px 16px; margin: 18px 0;">
               <p style="margin: 4px 0;"><strong>Nume și Prenume Copil:</strong> {{NUME_COPIL}} {{PRENUME_COPIL}}</p>
               <p style="margin: 4px 0;"><strong>CNP Copil:</strong> {{CNP_COPIL}}</p>
             </div>
             <p style="text-align: justify; text-indent: 40px;">
-              Beneficiarul vizat pentru acordarea acestei indemnizații este: <strong>{{BENEFICIAR}}</strong> (Nume partener: {{NUME_SOT}}, CNP Partener: {{CNP_SOT}}).
+              Beneficiarul vizat pentru acordarea acestei indemnizații este: <strong>{{BENEFICIAR}}</strong>.
             </p>
             <p style="text-align: justify; text-indent: 40px;">
               Confirm îndeplinirea condițiilor legale (inclusiv stagiul de cotizare) și anexez documentele justificative.
+            </p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Declar pe propria răspundere că datele introduse sunt corecte și corespund cu realitatea. Sunt de acord cu prelucrarea datelor cu caracter personal de către DGASPC conform normelor GDPR. Declar pe propria răspundere că sunt cetățean al Uniunii Europene.
             </p>
             ${semnaturaSolicitant()}
           ${WRAP_CLOSE}
@@ -289,7 +290,8 @@ async function populeaza() {
             <p style="font-size: 11px; color: #94a3b8;">Prezenta adeverință a fost eliberată pentru a-i servi la dosarul de alocație DGASPC.</p>
             <div style="text-align: right; margin-top: 40px;">
               <p style="font-size:12.5px; color:#475569;">Data emiterii: <strong>{{DATA_CURENTA}}</strong></p>
-              <p style="font-size:12.5px; color:#475569;">Reprezentant unitate ({{TIP_REPREZENTANT}}):</p>
+              <p style="font-size:12.5px; color:#475569; margin:0 0 2px 0;">Reprezentant unitate ({{TIP_REPREZENTANT}}):</p>
+              <p style="font-size:13px; color:#16244a; font-weight:700; margin:0 0 6px 0;">{{NUME_INTOCMITOR}}</p>
               <img src="{{SEMNATURA_BASE64}}" width="150" style="border-bottom:1px solid #16244a; padding-bottom:4px;" />
             </div>
           ${WRAP_CLOSE}
@@ -297,29 +299,31 @@ async function populeaza() {
       },
 
       // ── 9. DECIZIE — numele funcționarului, NU rol generic ──────────────
+     // ── HOTĂRÂRE — Alocație / Indemnizație — cu toate datele părintelui + partener ──
       {
         nume_sablon: 'Decizie_Beneficiu_Copil',
         tip_dosar: 'alocatie',
         continut_html: `
           ${WRAP_OPEN}
             ${antet()}
-            ${titlu('Decizie de soluționare', 'Dosar nr. {{NUMAR_DOSAR}}')}
+            ${titlu('Hotărâre', 'privind acordarea beneficiului social pentru copil')}
             <p style="text-align: justify; margin-bottom: 20px;">
-              În urma analizării documentației depuse și a îndeplinirii criteriilor prevăzute de lege, Departamentul pentru Protecția Copilului a dispus următoarea rezoluție:
+              Direcția Generală de Asistență Socială și Protecția Copilului, analizând documentația depusă la Dosarul nr. <strong>{{NUMAR_DOSAR}}</strong> de către <strong>{{NUME}} {{PRENUME}}</strong> (CNP: {{CNP}}), cu domiciliul în {{ADRESA_COMPLETA}}, telefon {{TELEFON}}, email {{EMAIL}},{{BLOC_PARTENER}} hotărăște următoarele:
             </p>
-            ${TABLE_OPEN}
-              <tr><td style="${TD}"><strong>Privind pe solicitantul:</strong> {{NUME}} {{PRENUME}}</td><td style="${TD}"><strong>C.N.P.:</strong> {{CNP}}</td></tr>
-              <tr><td style="${TD}" colspan="2"><strong>Tip cerere:</strong> {{TIP_DOSAR_FORMATAT}}</td></tr>
-            </table>
-            <div style="margin-top: 20px; padding: 18px; border: 2px solid {{CULOARE_DECIZIE}}; background-color: {{BG_DECIZIE}}; border-radius: 6px;">
-              <h4 style="margin: 0; color: {{CULOARE_DECIZIE}}; text-align: center; font-size: 17px;">REZOLUȚIE: {{STATUS_DECIZIE}}</h4>
-              <p style="text-align: center; margin-top: 10px;">{{MOTIV_DECIZIE}}</p>
+            <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; padding: 14px 16px; margin: 18px 0;">
+              <p style="margin: 4px 0; font-size: 14px;"><strong>Copil beneficiar:</strong> {{NUME_COPIL}}</p>
+              <p style="margin: 4px 0; font-size: 14px;"><strong>CNP copil:</strong> {{CNP_COPIL}}</p>
             </div>
+            <p style="text-align: justify;">
+              Se acordă beneficiul social solicitat, <strong>{{DURATA_BENEFICIU}}</strong>, conform prevederilor legale în vigoare.
+            </p>
             ${semnaturaFunctionar()}
           ${WRAP_CLOSE}
         `
       },
 
+      // ── 10. CERERE — adopție ─────────────────────────────────────────────
+      // ── 10. CERERE — adopție ─────────────────────────────────────────────
       // ── 10. CERERE — adopție ─────────────────────────────────────────────
       {
         nume_sablon: 'Cerere_Adoptie',
@@ -327,18 +331,17 @@ async function populeaza() {
         continut_html: `
           ${WRAP_OPEN}
             ${antet()}
-            ${titlu('Cerere', 'pentru evaluarea în vederea obținerii atestatului de familie adoptatoare')}
+            ${titlu('Cerere', 'pentru adoptarea unui copil instituționalizat')}
             <p><strong>DOMNULE DIRECTOR,</strong></p>
             <p style="text-align: justify; text-indent: 40px;">
-              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, cu domiciliul în județul <strong>{{JUDET}}</strong>, localitatea <strong>{{ORAS}}</strong>, str. <strong>{{STRADA}}</strong>, telefon <strong>{{TELEFON}}</strong>.
+              Subsemnatul/a <strong>{{NUME}} {{PRENUME}}</strong>, CNP <strong>{{CNP}}</strong>, cu domiciliul în județul <strong>{{JUDET}}</strong>, localitatea <strong>{{ORAS}}</strong>, str. <strong>{{STRADA}}</strong>, telefon <strong>{{TELEFON}}</strong>, e-mail <strong>{{EMAIL}}</strong>,{{BLOC_PARTENER_ADOPTIE}} solicit/ăm prin prezenta declanșarea procedurii de evaluare în vederea adoptării unui copil instituționalizat.
             </p>
             <p style="text-align: justify; text-indent: 40px;">
-              Date referitoare la soț/soție (dacă este cazul): <strong>{{NUME_SOT}}</strong>, CNP: <strong>{{CNP_SOT}}</strong>.
-            </p>
-            <p style="text-align: justify; text-indent: 40px;">
-              Prin prezenta, solicităm declanșarea procedurii de evaluare în vederea obținerii atestatului de familie adoptatoare.
               Suntem deschiși la adopția unui copil de gen: <strong>{{GEN_COPIL}}</strong>.
               Disponibilitate pentru adopția unui copil greu adoptabil (vârstă &gt;4 ani, afecțiuni, grupe de frați): <strong>{{GREU_ADOPTABIL}}</strong>.
+            </p>
+            <p style="text-align: justify; text-indent: 40px;">
+              Declar pe propria răspundere că datele introduse sunt corecte și corespund cu realitatea. Sunt de acord cu prelucrarea datelor cu caracter personal de către DGASPC conform normelor GDPR. Declar pe propria răspundere că sunt cetățean al Uniunii Europene.
             </p>
             <table style="width: 100%; margin-top: 50px;">
               <tr>
@@ -384,17 +387,18 @@ async function populeaza() {
           ${WRAP_OPEN}
             ${antet()}
             ${titlu('Certificat de cazier judiciar', 'Ministerul Afacerilor Interne — Inspectoratul de Poliție Județean')}
-            <p style="text-align: justify;">Se atestă prin prezenta situația juridică pentru solicitantul principal (și soț/soție, dacă este cazul), aparținând Dosarului DGASPC nr. <strong>{{NUMAR_DOSAR}}</strong>.</p>
-            ${TABLE_OPEN}
+           <p style="text-align: justify;">Se atestă prin prezenta situația juridică a persoanei <strong>{{NUME_PERSOANA}}</strong>, solicitant în cadrul Dosarului DGASPC de adopție nr. <strong>{{NUMAR_DOSAR}}</strong>.</p>
+           ${TABLE_OPEN}
               <tr><td style="${TD}" width="35%"><strong>Antecedente penale:</strong></td><td style="${TD}">{{ANTECEDENTE}}</td></tr>
               <tr><td style="${TD}"><strong>Mențiuni/Detalii:</strong></td><td style="${TD}">{{MENTIUNI_CAZIER}}</td></tr>
             </table>
             <p style="font-size: 11px; color: #94a3b8; text-align: justify;">Documentul a fost generat și validat digital prin intermediul platformei securizate DGASPC, servind exclusiv procedurii de evaluare pentru adopție națională.</p>
             <div style="text-align: right; margin-top: 40px;">
-              <p style="font-size:12.5px; color:#475569;">Generat la data: <strong>{{DATA_CURENTA}}</strong></p>
-              <p style="font-size:12.5px; color:#475569;">Validat de reprezentantul legal al Poliției:</p>
-              <img src="{{SEMNATURA_BASE64}}" width="130" style="border-bottom:1px solid #16244a; padding-bottom:4px;" />
-            </div>
+        <p style="font-size:12.5px; color:#475569;">Generat la data: <strong>{{DATA_CURENTA}}</strong></p>
+        <p style="font-size:12.5px; color:#475569; margin:0 0 2px 0;">Validat de reprezentantul legal al Poliției:</p>
+        <p style="font-size:13px; color:#16244a; font-weight:700; margin:0 0 6px 0;">{{NUME_INTOCMITOR}}</p>
+        <img src="{{SEMNATURA_BASE64}}" width="130" style="border-bottom:1px solid #16244a; padding-bottom:4px;" />
+      </div>
           ${WRAP_CLOSE}
         `
       },
@@ -408,16 +412,19 @@ async function populeaza() {
             ${antet()}
             ${titlu('Adeverință de domiciliu', 'Direcția de Evidență a Persoanelor / Primăria Locală')}
             <p style="text-align: justify;">
-              Se adeverește prin prezenta, în urma verificărilor în bazele de date și a declarațiilor solicitanților, că domnul/doamna <strong>{{NUME}} {{PRENUME}}</strong>
-              (CNP: {{CNP}}) are domiciliul stabil / reședința în fapt la adresa:
-            </p>
-            <div style="padding: 14px 16px; margin: 18px 0; border-left: 4px solid #2563eb; background: #eff6ff; border-radius: 4px; font-weight: bold; font-size: 14px;">
-              {{ADRESA_COMPLETA}}
-            </div>
-            <p><strong>Confirmare potrivire adresă cu realitatea:</strong> {{CONFIRMARE_ADRESA}}</p>
+        Se adeverește prin prezenta, în urma verificărilor în bazele de date și a declarațiilor solicitanților, că domnul/doamna <strong>{{NUME}} {{PRENUME}}</strong>
+        (CNP: {{CNP}}) are domiciliul stabil / reședința în fapt la adresa:
+      </p>
+      <div style="padding: 14px 16px; margin: 18px 0; border-left: 4px solid #2563eb; background: #eff6ff; border-radius: 4px; font-weight: bold; font-size: 14px;">
+        {{ADRESA_COMPLETA}}
+      </div>
+      {{BLOC_SOT}}
+      <p><strong>Confirmare potrivire adresă cu realitatea:</strong> {{CONFIRMARE_ADRESA}}</p>
             <p><strong>Alte detalii / mențiuni:</strong> {{DETALII_ADRESA}}</p>
             <div style="text-align: right; margin-top: 50px;">
               <p style="font-size:12.5px; color:#475569;">Data eliberării: <strong>{{DATA_CURENTA}}</strong></p>
+              <p style="font-size:12.5px; color:#475569; margin:0 0 2px 0;">Întocmit de:</p>
+              <p style="font-size:13px; color:#16244a; font-weight:700; margin:0 0 6px 0;">{{NUME_INTOCMITOR}}</p>
               <img src="{{SEMNATURA_BASE64}}" width="140" style="border-bottom:1px solid #16244a; padding-bottom:4px;" />
             </div>
           ${WRAP_CLOSE}
@@ -431,13 +438,26 @@ async function populeaza() {
         continut_html: `
           ${WRAP_OPEN}
             ${antet()}
-            ${titlu('Anchetă socială pentru adopție')}
-            <p>Efectuată pentru familia/persoana: <strong>{{NUME}} {{PRENUME}}</strong></p>
-            ${sectiune('1. Condiții locative')}<p>{{CONDITII_LOCATIVE}}</p>
-            ${sectiune('2. Situația veniturilor')}<p>{{VENITURI}}</p>
-            ${sectiune('3. Istoric familial și relații sociale')}<p>{{ISTORIC_FAMILIAL}}</p>
-            ${sectiune('4. Motivația adopției')}<p>{{MOTIVATIE}}</p>
-            ${sectiune('5. Concluzia asistentului social')}<p>Garanții morale și materiale: <strong>{{CONCLUZIE_ANCHETA}}</strong></p>
+            ${titlu('Anchetă socială', 'în vederea adopției')}
+            <p>Subsemnatul/a, funcționar în cadrul compartimentului Asistență Socială, am efectuat ancheta socială pentru:</p>
+            ${TABLE_OPEN}
+              <tr><td style="${TD}"><strong>Nume:</strong> {{NUME}} {{PRENUME}}</td><td style="${TD}"><strong>CNP:</strong> {{CNP}}</td></tr>
+              <tr><td style="${TD}"><strong>Domiciliu:</strong> {{DOMICILIU}}</td><td style="${TD}"><strong>Telefon:</strong> {{TELEFON}}</td></tr>
+            </table>
+            ${sectiune('I. Condiții de locuire')}
+            <p style="margin:0;">Tip locuință: <b>{{TIP_LOCUINTA}}</b> ({{NR_CAMERE}} camere) | Încălzire: <b>{{INCALZIRE}}</b> | Apă curentă: <b>{{APA_CURENTA}}</b></p>
+            <p style="margin:0;">Dotări locuință: <b>{{DOTARI_LOCUINTA}}</b></p>
+            ${sectiune('II. Situație familială și socială')}
+            <p style="margin:0;">Coabitare: <b>{{COABITARE}}</b> | Coabitant cu boli: <b>{{COABITANT_BOLNAV}}</b> | Coabitant cu adicții: <b>{{COABITANT_ADICTII}}</b></p>
+            <p style="margin:0;">Relație familie: <b>{{RELATIE_FAMILIE}}</b> | Risc neglijare: <b>{{RISC_NEGLIJARE}}</b> | Risc abuz: <b>{{RISC_ABUZ}}</b></p>
+            <p style="margin:0;">Persoană de contact: <b>{{PERS_CONTACT}}</b> | Are prieteni: <b>{{ARE_PRIETENI}}</b> | Participare comunitate: <b>{{PARTICIPARE_COMUNITATE}}</b></p>
+            ${sectiune('III. Situație financiară și istoric familial')}
+            <p style="margin:0;">Situație financiară / Venituri: <b>{{VENITURI}}</b></p>
+            <p style="margin:0;">Istoric familial relevant: <b>{{ISTORIC}}</b></p>
+            ${sectiune('IV. Evaluare specifică adopției')}
+            <p style="margin:0;">Motivația pentru adopție: <b>{{MOTIVATIE}}</b></p>
+            <p style="margin:0;">Concluzie anchetă: <b>{{CONCLUZIE}}</b></p>
+            <p style="margin-top:10px;">Concluzii generale: {{CONCLUZII}}</p>
             <div style="text-align: right; margin-top: 30px;">
               <p style="font-size:12.5px; color:#475569;">Data completării: <strong>{{DATA_CURENTA}}</strong></p>
               <img src="{{SEMNATURA_BASE64}}" width="120" style="border-bottom:1px solid #16244a; padding-bottom:4px;" />
@@ -459,7 +479,7 @@ async function populeaza() {
               Direcția Generală de Asistență Socială și Protecția Copilului, în temeiul deciziei comisiei de adopții și a documentației anexate Dosarului nr. <strong>{{NUMAR_DOSAR}}</strong>, atestă prin prezenta finalizarea procedurii de adopție, după cum urmează:
             </p>
             ${TABLE_OPEN}
-              <tr><td style="${TD}" colspan="2"><strong>Părinte(le) adoptator:</strong> {{NUME}} {{PRENUME}} (CNP: {{CNP}})</td></tr>
+              <tr><td style="${TD}" colspan="2"><strong>Părinte/Părinți adoptator(i):</strong> {{NUME}} {{PRENUME}} (CNP: {{CNP}})</td></tr>
             </table>
             <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; border-radius: 4px; padding: 14px 16px; margin: 18px 0;">
               <p style="margin: 4px 0; font-size: 14px;"><strong>Copil adoptat:</strong> {{NUME_COPIL_ADOPTAT}} {{PRENUME_COPIL_ADOPTAT}}</p>

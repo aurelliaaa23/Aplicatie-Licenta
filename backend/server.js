@@ -18,6 +18,7 @@ const documenteRoutes   = require('./routes/documente.routes');
 const programariRoutes  = require('./routes/programari.routes');
 const notificariRoutes  = require('./routes/notificari.routes');
 const chatbotRoutes     = require('./routes/chatbot.routes');
+const statisticiRoutes  = require('./routes/statistici.routes');
 
 const app    = express();
 const server = http.createServer(app);
@@ -43,6 +44,7 @@ app.use('/api/documente',  documenteRoutes);
 app.use('/api/programari', programariRoutes);
 app.use('/api/notificari', notificariRoutes);
 app.use('/api/chatbot',    chatbotRoutes);
+app.use('/api/statistici', statisticiRoutes);
 
 // ── Rută de test ─────────────────────────────────────────
 app.get('/api/health', (req, res) => {

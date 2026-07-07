@@ -149,7 +149,7 @@ export default function Profil() {
     medic:               'Medic specialist',
     funcționar_primărie: 'Funcționar primărie',
     reprezentant_școală: 'Reprezentant școală',
-    manager:             'Manager DGASPC',
+    funcționar_poliție:  'Funcționar poliție',
     administrator:       'Administrator sistem',
   };
 

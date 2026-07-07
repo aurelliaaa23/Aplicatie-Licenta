@@ -35,6 +35,7 @@ router.get('/', verificaToken, async (req, res) => {
 });
 
 // ── POST /api/programari (CREARE PROGRAMARE + EMAIL CETĂȚEAN) ────────────────
+// ── POST /api/programari (CREARE PROGRAMARE + EMAIL CETĂȚEAN) ────────────────
 router.post('/', verificaToken, async (req, res) => {
   try {
     const { dosar_id, tip_comisie, data_ora, durata_minute, locatie } = req.body;
@@ -45,13 +46,13 @@ router.post('/', verificaToken, async (req, res) => {
 
     if (!dosar) return res.status(404).json({ eroare: 'Dosarul nu a fost găsit!' });
 
-    // 1. Creăm programarea folosind EXACT numele coloanelor din baza de date
+    // Tabela reală are DOAR: dosar_id, data_ora_programare, locatie, detalii.
+    // Codificăm tipul comisiei chiar la începutul textului din "detalii", ca să nu fie nevoie de coloane noi.
     const programare = await ProgramareComisie.create({
       dosar_id,
-      functionar_id: req.utilizator.id, 
-      tip_comisie,
-      data_ora_programare: data_ora, // FIX: Am corectat denumirea coloanei
-      detalii: "Programarea va dura " + durata_minute || 30 + "  și va fi la " + locatie || 'Sediul DGASPC',
+      data_ora_programare: data_ora,
+      locatie: locatie || 'Sediul DGASPC',
+      detalii: `[TIP:${tip_comisie || 'protectia_copilului'}] Programarea va dura ${durata_minute || 30} minute și va fi la ${locatie || 'Sediul DGASPC'}`,
     });
 
     // 2. Actualizăm statusul dosarului
@@ -93,13 +94,14 @@ router.post('/', verificaToken, async (req, res) => {
 });
 
 // ── PATCH /api/programari/:id/status ─────────────────────────────────────────
-router.patch('/:id/status', verificaToken, async (req, res) => {
+// ── PATCH /api/programari/:id/status ─────────────────────────────────────────
+// ── DELETE /api/programari/:id (ANULARE PROGRAMARE) ─────────────────────────
+router.delete('/:id', verificaToken, async (req, res) => {
   try {
-    const { status } = req.body;
     const programare = await ProgramareComisie.findByPk(req.params.id);
-    if (!programare) return res.status(404).json({ eroare: 'Programare negasita' });
-    await programare.update({ status });
-    res.json({ mesaj: 'Status actualizat' });
+    if (!programare) return res.status(404).json({ eroare: 'Programare negăsită' });
+    await programare.destroy();
+    res.json({ mesaj: 'Programare anulată cu succes' });
   } catch (err) {
     res.status(500).json({ eroare: err.message });
   }

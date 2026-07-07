@@ -94,26 +94,20 @@ export default function Layout({ children, title, notifCount = 0 }) {
             <div className="nav-section-label">Activitate</div>
             <NavItem to="/dosare" icon={icons.folder} label="Dosare alocate" badge={notifCount} />
             <NavItem to="/calendar" icon={icons.calendar} label="Calendar comisii" />
-            <NavItem to="/colaborare" icon={icons.users} label="Colaborare externă" />
+            {rol === 'manager' && <NavItem to="/colaborare" icon={icons.users} label="Colaborare externă" />}
           </>}
 
-          {/* Manager */}
-          {(rol === 'manager' || rol === 'administrator') && <>
-            <div className="nav-section-label">Management</div>
-            <NavItem to="/rapoarte" icon={icons.chart} label="Rapoarte & statistici" />
-            <NavItem to="/utilizatori" icon={icons.users} label="Utilizatori" />
-          </>}
 
           {/* Actori externi */}
-          {(rol === 'medic' || rol === 'funcționar_primărie' || rol === 'reprezentant_școală') && <>
+          {(rol === 'medic' || rol === 'funcționar_primărie' || rol === 'reprezentant_școală' || rol === 'funcționar_poliție') && <>
             <div className="nav-section-label">Contribuții</div>
             <NavItem to="/dosare" icon={icons.folder} label="Dosare primite" />
           </>}
 
-          {/* Admin */}
+          {/* Administrator — exact 3 elemente în total: Panou principal, Profilul meu (deja în General) + acesta */}
           {rol === 'administrator' && <>
             <div className="nav-section-label">Sistem</div>
-            <NavItem to="/audit" icon={icons.shield} label="Audit log" />
+            <NavItem to="/dosare" icon={icons.folder} label="Dosare primite" />
           </>}
         </nav>
 

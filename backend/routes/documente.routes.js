@@ -166,24 +166,21 @@ router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
     html = html.replace(/{{PRENUME_COPIL}}/g, date_copil.prenume || '-');
     html = html.replace(/{{CNP_COPIL}}/g, date_copil.cnp || '-');
 
+    let blocPartenerCopil = ' ';
+    if (date_familie.tipFamilie === 'integrala' && date_familie.numeSot) {
+      blocPartenerCopil = ` împreună cu celălalt părinte, <strong>${date_familie.numeSot}</strong> (CNP: ${date_familie.cnpSot}),`;
+    }
+    html = html.replace(/{{BLOC_PARTENER}}/g, blocPartenerCopil);
+
     if (tip_dosar === 'alocatie') {
       html = html.replace(/{{SERIE_CI}}/g, date_cerere.serie_ci);
       html = html.replace(/{{NUMAR_CI}}/g, date_cerere.numar_ci);
-      
-      let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
-      let cnpSot = date_familie.tipFamilie === 'integrala' && date_familie.cnpSot ? date_familie.cnpSot : '-';
-      html = html.replace(/{{NUME_SOT}}/g, numeSot);
-      html = html.replace(/{{CNP_SOT}}/g, cnpSot);
     }
 
     if (tip_dosar === 'indemnizatie') {
       let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
-      let cnpSot = date_familie.tipFamilie === 'integrala' && date_familie.cnpSot ? date_familie.cnpSot : '-';
       let beneficiar = date_indemnizatie.beneficiar === 'titular' ? `${cetatean.nume} ${cetatean.prenume}` : numeSot;
-      
       html = html.replace(/{{BENEFICIAR}}/g, beneficiar);
-      html = html.replace(/{{NUME_SOT}}/g, numeSot);
-      html = html.replace(/{{CNP_SOT}}/g, cnpSot);
     }
 
     const uploadDir = path.join(__dirname, '../uploads', String(cetatean.id));
@@ -204,7 +201,8 @@ router.post('/genereaza-cerere-copil', verificaToken, async (req, res) => {
       tip_document: 'alte', 
       nume_fisier: tip_dosar === 'alocatie' ? 'Cerere Acordare Alocație Stat' : 'Cerere Acordare Indemnizație',
       cale_fisier: `uploads/${cetatean.id}/${fileName}`,
-      validat: true 
+      status_document: 'incarcat',
+      validat: false 
     });
 
     res.json({ mesaj: 'Cerere PDF generată și atașată cu succes.' });
@@ -239,17 +237,19 @@ router.post('/genereaza-cerere-adoptie', verificaToken, async (req, res) => {
     html = html.replace(/{{ORAS}}/g, cetatean.oras || '-');
     html = html.replace(/{{STRADA}}/g, date_cerere.strada || '-');
     html = html.replace(/{{TELEFON}}/g, cetatean.telefon || '-');
+    html = html.replace(/{{EMAIL}}/g, cetatean.email || '-');
 
-    let numeSot = date_familie.tipFamilie === 'integrala' && date_familie.numeSot ? date_familie.numeSot : '-';
-    let cnpSot = date_familie.tipFamilie === 'integrala' && date_familie.cnpSot ? date_familie.cnpSot : '-';
-    
-    html = html.replace(/{{NUME_SOT}}/g, numeSot);
-    html = html.replace(/{{CNP_SOT}}/g, cnpSot);
+    let blocPartenerAdoptie = ' ';
+    if (date_familie.tipFamilie === 'integrala' && date_familie.numeSot) {
+      blocPartenerAdoptie = ` împreună cu partenerul, <strong>${date_familie.numeSot}</strong> (CNP: ${date_familie.cnpSot}),`;
+    }
+    html = html.replace(/{{BLOC_PARTENER_ADOPTIE}}/g, blocPartenerAdoptie);
+
     html = html.replace(/{{GEN_COPIL}}/g, date_adoptie.gen_copil === 'indiferent' ? 'Indiferent (Băiat/Fată)' : date_adoptie.gen_copil);
-    html = html.replace(/{{GREU_ADOPTABIL}}/g, date_adoptie.greu_adoptabil === 'Da' ? 'Dosar Nou' : 'Reevaluare');
+    html = html.replace(/{{GREU_ADOPTABIL}}/g, date_adoptie.greu_adoptabil === 'Da' ? 'Da' : 'Nu');
     html = html.replace(/{{SEMNATURA_BASE64}}/g, semnatura_base64 || '');
+    html = html.replace(/{{SEMNATURA_SOT_BASE64}}/g, semnatura_sot_base64 || '');
     html = html.replace(/{{DATA_CURENTA}}/g, new Date().toLocaleDateString('ro-RO'));
-
     const pdfBuffer = await htmlToPdf.generatePdf({ content: html }, { format: 'A4', margin: { top: '40px', bottom: '40px', left: '40px', right: '40px' } });
 
     const dir = path.join(__dirname, '../uploads', String(cetatean.id));
