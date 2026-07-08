@@ -8,7 +8,7 @@ const ProgramareComisie = sequelize.define('ProgramareComisie', {
   locatie: { type: DataTypes.STRING(255) },
   detalii: { type: DataTypes.TEXT },
 }, {
-  tableName: 'programari_comisie',   // singular, nu programari_comisii!
+  tableName: 'programari_comisie',   
   timestamps: true,
   createdAt: 'creat_la',
   updatedAt: 'actualizat_la',

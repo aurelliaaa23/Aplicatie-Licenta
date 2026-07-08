@@ -1,7 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { Utilizator, Rol } = require('../models');
 
-// Verifică token JWT valid
 const verificaToken = async (req, res, next) => {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer '))
@@ -22,7 +21,6 @@ const verificaToken = async (req, res, next) => {
   }
 };
 
-// Verifică rolul utilizatorului
 const verificaRol = (...roluriPermise) => (req, res, next) => {
   if (!roluriPermise.includes(req.utilizator.Rol.nume))
     return res.status(403).json({ eroare: 'Acces interzis pentru rolul tău' });

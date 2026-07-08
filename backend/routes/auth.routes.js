@@ -5,7 +5,7 @@ const nodemailer = require('nodemailer');
 const { Utilizator, Rol, ProfilCetatean, ProfilMedic, ProfilFunctionar } = require('../models');
 const { verificaToken } = require('../middleware/auth.middleware');
 
-// ── Nodemailer ────────────────────────────────────────────────────────────────
+
 const mailer = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -14,7 +14,6 @@ const mailer = nodemailer.createTransport({
   },
 });
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function genOTP() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
@@ -67,7 +66,6 @@ function maskEmail(email) {
   return `${masked}@${domain}`;
 }
 
-// ── POST /api/auth/register ───────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const {
@@ -111,7 +109,6 @@ router.post('/register', async (req, res) => {
       email_verificat: false,
     });
 
-    // Creare profil specific
     if (['funcționar', 'funcționar_primărie', 'funcționar_poliție', 'administrator', 'reprezentant_școală'].includes(numeRol)) {
       await ProfilFunctionar.create({
         utilizator_id: user.id,
@@ -153,7 +150,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// ── POST /api/auth/verifica-cont ─────────────────────────────────────────────
+
 router.post('/verifica-cont', async (req, res) => {
   try {
     const { user_id, cod_email } = req.body;
@@ -171,7 +168,6 @@ router.post('/verifica-cont', async (req, res) => {
   }
 });
 
-// ── POST /api/auth/retrimite-otp ─────────────────────────────────────────────
 router.post('/retrimite-otp', async (req, res) => {
   try {
     const { user_id, email } = req.body;
@@ -187,7 +183,7 @@ router.post('/retrimite-otp', async (req, res) => {
   }
 });
 
-// ── POST /api/auth/login ──────────────────────────────────────────────────────
+
 router.post('/login', async (req, res) => {
   try {
     const { email, parola } = req.body;
@@ -224,7 +220,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// ── POST /api/auth/verifica-otp-login ────────────────────────────────────────
+
 router.post('/verifica-otp-login', async (req, res) => {
   try {
     const { user_id, cod } = req.body;
@@ -281,7 +277,7 @@ router.post('/verifica-otp-login', async (req, res) => {
   }
 });
 
-// ── GET /api/auth/profil ──────────────────────────────────────────────────────
+
 router.get('/profil', verificaToken, async (req, res) => {
   try {
     const user = await Utilizator.findByPk(req.utilizator.id, {
@@ -324,12 +320,11 @@ router.get('/profil', verificaToken, async (req, res) => {
   }
 });
 
-// ── PATCH /api/auth/profil ────────────────────────────────────────────────────
 router.patch('/profil', verificaToken, async (req, res) => {
   try {
     const { prenume, nume, telefon, email, judet, oras, adresa_completa } = req.body;
 
-    // Salvăm tot ce vine pe utilizator (inclusiv judet și oras)
+    
     await req.utilizator.update({
       prenume, nume, telefon, email,
       ...(judet !== undefined && { judet }),
@@ -338,7 +333,7 @@ router.patch('/profil', verificaToken, async (req, res) => {
 
     const rol = req.utilizator.Rol?.nume || (await Rol.findByPk(req.utilizator.rol_id))?.nume;
 
-    // Doar adresa_completa (strada) merge în ProfilCetatean
+   
     if (rol === 'cetățean' && adresa_completa !== undefined) {
       const profil = await ProfilCetatean.findOne({ where: { utilizator_id: req.utilizator.id } });
       if (profil) {
@@ -359,7 +354,7 @@ router.patch('/profil', verificaToken, async (req, res) => {
   }
 });
 
-// ── PATCH /api/auth/schimba-parola ────────────────────────────────────────────
+
 router.patch('/schimba-parola', verificaToken, async (req, res) => {
   try {
     const { parola_curenta, parola_noua } = req.body;
@@ -375,7 +370,7 @@ router.patch('/schimba-parola', verificaToken, async (req, res) => {
   }
 });
 
-// ── GET /api/auth/medici ──────────────────────────────────────────────────────
+
 router.get('/medici', verificaToken, async (req, res) => {
   try {
     const rolMedic = await Rol.findOne({ where: { nume: 'medic' } });
@@ -402,7 +397,7 @@ router.get('/medici', verificaToken, async (req, res) => {
   }
 });
 
-// ── GET /api/auth/cauta-cnp/:cnp (NOU PENTRU AUTO-COMPLETARE SOT/SOTIE) ──────
+
 router.get('/cauta-cnp/:cnp', verificaToken, async (req, res) => {
   try {
     const { cnp } = req.params;
@@ -421,8 +416,7 @@ router.get('/cauta-cnp/:cnp', verificaToken, async (req, res) => {
   }
 });
 
-// ── GET /api/auth/cadre-didactice (NOU PENTRU FORMULAR ALOCATIE) ─────────────
-// ── GET /api/auth/cadre-didactice ─────────────────────────────
+
 router.get('/cadre-didactice', verificaToken, async (req, res) => {
   try {
     // Căutăm direct utilizatorii care au rol_id = 5
@@ -431,7 +425,7 @@ router.get('/cadre-didactice', verificaToken, async (req, res) => {
       attributes: ['id', 'nume', 'prenume', 'judet', 'oras'],
       include: [{ 
         model: ProfilFunctionar, 
-        as: 'profilFunctionar', // asigură-te că as-ul este la fel ca cel din relațiile tale Sequelize
+        as: 'profilFunctionar',
         attributes: ['institutie', 'departament']
       }]
     });
@@ -443,7 +437,7 @@ router.get('/cadre-didactice', verificaToken, async (req, res) => {
       judet: c.judet,
       oras: c.oras,
       institutie: c.profilFunctionar?.institutie || 'Fără Instituție',
-      tip: c.profilFunctionar?.departament || '' // educator, invatator, profesor
+      tip: c.profilFunctionar?.departament || ''
     })));
   } catch (err) {
     res.status(500).json({ eroare: err.message });

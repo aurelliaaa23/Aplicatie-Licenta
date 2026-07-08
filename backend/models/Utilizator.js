@@ -31,9 +31,3 @@ const Utilizator = sequelize.define('Utilizator', {
 });
 
 module.exports = Utilizator;
-
-// CÂMPURI ELIMINATE față de versiunea anterioară (mutate în tabele profil):
-// - departament  → profil_functionar.departament
-// - specialitate → profil_medic.specialitate
-// - judet        → profil_cetatean.judet
-// - oras         → profil_cetatean.oras

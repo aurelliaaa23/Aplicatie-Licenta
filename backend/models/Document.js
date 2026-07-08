@@ -12,7 +12,7 @@ const Document = sequelize.define('Document', {
     type: DataTypes.ENUM('incarcat', 'validat', 'ilizibil', 'incomplet'),
     defaultValue: 'incarcat',
   },
-  validat: { type: DataTypes.BOOLEAN, defaultValue: false },  // ← ADAUGĂ
+  validat: { type: DataTypes.BOOLEAN, defaultValue: false }, 
   motiv_respingere: { type: DataTypes.TEXT },
   semnat_digital: { type: DataTypes.BOOLEAN, defaultValue: false },
   date_semnatura: { type: DataTypes.TEXT },

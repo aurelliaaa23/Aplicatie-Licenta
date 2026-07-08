@@ -47,7 +47,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Layout ─────────────────────────────────────────── */
+
 .app-shell { display: flex; min-height: 100vh; }
 
 .sidebar {
